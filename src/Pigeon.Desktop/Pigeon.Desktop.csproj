@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pigeon.Simulation/Pigeon.Simulation.csproj" />
+    <ProjectReference Include="../Pigeon.World.Desktop/Pigeon.World.Desktop.csproj" />
+    <ProjectReference Include="../Pigeon.Persistence.Sqlite/Pigeon.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="../Pigeon.Desktop.Windows/Pigeon.Desktop.Windows.csproj" />
+    <ProjectReference Include="../Pigeon.Desktop.MacOS/Pigeon.Desktop.MacOS.csproj" />
+    <ProjectReference Include="../Pigeon.Desktop.Linux/Pigeon.Desktop.Linux.csproj" />
+  </ItemGroup>
+
+</Project>

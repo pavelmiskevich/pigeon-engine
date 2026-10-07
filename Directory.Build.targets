@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    Ядро движка (ТЗ §3.2, ADR-0014, ADR-0016): проект помечается свойством PigeonCore=true.
+    Ядро trim- и AOT-safe, не ходит в ОС, сеть и файловую систему, берёт время и случайность
+    только через абстракции. Запреты проверяет BannedApiAnalyzers, граф зависимостей —
+    Pigeon.Architecture.Tests.
+  -->
+  <PropertyGroup Condition="'$(PigeonCore)' == 'true'">
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PigeonCore)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/BannedSymbols.Core.txt" />
+  </ItemGroup>
+
+  <!-- Генератор мира: побитовый детерминизм между CoreCLR и WASM (ТЗ §3.3). -->
+  <ItemGroup Condition="'$(PigeonWorldGeneration)' == 'true'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/BannedSymbols.Generation.txt" />
+  </ItemGroup>
+
+</Project>

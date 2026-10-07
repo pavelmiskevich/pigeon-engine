@@ -1,1 +1,13 @@
+# Исходные версии спецификации хранятся вне репозитория
 docs/spec/archive/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+*.trx

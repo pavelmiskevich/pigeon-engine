@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PigeonCore>true</PigeonCore>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pigeon.Common/Pigeon.Common.csproj" />
+    <ProjectReference Include="../Pigeon.Core/Pigeon.Core.csproj" />
+    <ProjectReference Include="../Pigeon.World.Abstractions/Pigeon.World.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
