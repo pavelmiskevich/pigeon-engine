@@ -19,13 +19,21 @@ dotnet build PigeonEngine.slnx
 dotnet test --solution PigeonEngine.slnx
 ```
 
+Проверка ядра в браузере (нужны Node.js и установленный Chrome): эталонные хеши симуляции и
+генерации в .NET WebAssembly должны совпасть с CoreCLR.
+
+```sh
+dotnet publish tests/Pigeon.Wasm.Harness -c Release -o artifacts/wasm-harness
+cd tools/wasm-check && npm ci && node run.mjs
+```
+
 ## Структура
 
 | Каталог | Содержание |
 |---------|-----------|
 | `src/` | Движок, миры, хранение, хост Desktop и платформенные адаптеры |
-| `tools/` | Утилиты, в том числе `pigeon-probe` |
-| `tests/` | Тесты; `Pigeon.Architecture.Tests` проверяет правила зависимостей ядра |
+| `tools/` | Утилиты: `pigeon-probe`, `wasm-check` (запуск WASM-харнесса в headless Chrome) |
+| `tests/` | Тесты; `Pigeon.Architecture.Tests` проверяет правила зависимостей ядра; `Shared/` — эталонные сценарии детерминизма; `Pigeon.Wasm.Harness` — те же сценарии в браузере |
 | `build/` | Общие файлы сборки: запрещённые API для ядра и генератора мира |
 | `docs/` | Спецификация, ADR, план работ, исследования |
 

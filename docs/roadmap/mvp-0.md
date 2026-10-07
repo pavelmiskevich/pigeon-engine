@@ -110,8 +110,10 @@
 Минимальная проверка ограничения из ADR-0014, без выбора рендера:
 
 - `Pigeon.Core`, `Pigeon.Simulation` и заглушка генератора собираются под `browser-wasm`
-  (шаблон `wasmbrowser`, без Blazor UI) с trimming;
-- тесты S0.5 запускаются в headless-браузере, и хеш совпадает с хешем CoreCLR x64.
+  (`Microsoft.NET.Sdk.WebAssembly` с JSExport, без Blazor UI; шаблон `wasmbrowser` требует
+  workload, SDK — нет) с trimming;
+- эталонные сценарии S0.5 и генератора запускаются в headless-браузере, и хеши совпадают с
+  хешами CoreCLR.
 
 Полноценный прототип рендера города — задача перед MVP-4
 (см. [browser-runtime](../research/browser-runtime.md), этап B1).

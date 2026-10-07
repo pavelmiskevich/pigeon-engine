@@ -14,11 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Pigeon.Simulation/Pigeon.Simulation.csproj" />
+    <ProjectReference Include="../../src/Pigeon.World.City.Generation/Pigeon.World.City.Generation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../Shared/GoldenSimulation.cs" Link="Shared/GoldenSimulation.cs" />
+    <Compile Include="../Shared/GoldenCity.cs" Link="Shared/GoldenCity.cs" />
   </ItemGroup>
 
 </Project>

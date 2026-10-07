@@ -24,4 +24,23 @@ CI-джоба «ядро в WASM» с проверкой хешей детерм
 
 - Точки выхода: AOT, Web Worker, перенос NPC на сервер; замена рендера через `RenderBridge`;
   пересмотр Unity после 6.8.
-- Открыт вопрос модели управления в Browser (Q10).
+- Модель управления в Browser решена (Q10): голубь автономен.
+
+## Проверка B0 (S0.7)
+
+Ограничение на ядро подтверждено; выбор рендера остаётся за прототипом B1.
+
+- `Pigeon.Common`, `Pigeon.Core`, `Pigeon.AI`, `Pigeon.Simulation` и заглушка генератора
+  `Pigeon.World.City.Generation` собираются и публикуются под `browser-wasm` с полным trimming,
+  без предупреждений trim-анализа.
+- Харнесс `tests/Pigeon.Wasm.Harness` построен на `Microsoft.NET.Sdk.WebAssembly` (JSExport, без
+  Blazor). Шаблон `wasmbrowser` требует workload, а SDK — нет: интерпретатор без AOT и нативного
+  релинка собирается обычным SDK .NET 10. Поэтому харнесс входит в общее решение и собирается на
+  всех платформах CI.
+- В headless Chrome харнесс выполняет те же эталонные сценарии, что .NET-тесты
+  (`tests/Shared/GoldenSimulation.cs`, `tests/Shared/GoldenCity.cs`), и сверяет хеши. Джоба CI
+  `core-in-wasm` падает при любом расхождении.
+- Размер публикации (интерпретатор, без AOT): ~4.3 МБ исходных файлов, ~1.7 МБ gzip,
+  **~1.4 МБ brotli**. Из них ~0.95 МБ brotli — рантайм `dotnet.native.wasm`, ~0.3 МБ —
+  `System.Private.CoreLib`. Бюджет B1 (≤ 10 МБ сжатого) пока выполняется с большим запасом; рендер
+  и ассеты города добавятся сверху.
