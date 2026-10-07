@@ -20,6 +20,24 @@ public sealed class RandomStreams
 
     public ulong RootSeed => _rootSeed;
 
+    /// <summary>Восстанавливает потоки из снимка <see cref="Snapshot"/>.</summary>
+    public static RandomStreams Restore(ulong rootSeed, IEnumerable<KeyValuePair<string, Pcg32State>> streams)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+
+        var restored = new RandomStreams(rootSeed);
+        foreach (var (name, state) in streams)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(name);
+            if (!restored._streams.TryAdd(name, Pcg32.Restore(state)))
+            {
+                throw new ArgumentException($"Поток «{name}» встречается в снимке дважды.", nameof(streams));
+            }
+        }
+
+        return restored;
+    }
+
     /// <summary>Поток с данным именем; создаётся при первом обращении.</summary>
     public IRandomSource Get(string name)
     {

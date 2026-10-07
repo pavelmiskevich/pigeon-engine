@@ -17,6 +17,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/Pigeon.Architecture.Tests/Pigeon.Architecture.Tests.csproj" />
     <Project Path="tests/Pigeon.Common.Tests/Pigeon.Common.Tests.csproj" />
+    <Project Path="tests/Pigeon.Persistence.CrashWriter/Pigeon.Persistence.CrashWriter.csproj" />
+    <Project Path="tests/Pigeon.Persistence.Tests/Pigeon.Persistence.Tests.csproj" />
     <Project Path="tests/Pigeon.Simulation.Tests/Pigeon.Simulation.Tests.csproj" />
     <Project Path="tests/Pigeon.Wasm.Harness/Pigeon.Wasm.Harness.csproj" />
     <Project Path="tests/Pigeon.World.City.Generation.Tests/Pigeon.World.City.Generation.Tests.csproj" />

@@ -12,7 +12,8 @@ namespace Pigeon.Simulation;
 /// <remarks>
 /// Входы применяются в начале тика, в порядке поступления. Живой вход (<see cref="Submit"/>)
 /// попадает в ближайший тик и записывается в <see cref="Journal"/>; при воспроизведении те же
-/// записи подаются через <see cref="Replay"/>.
+/// записи подаются через <see cref="Replay"/>. Снимок (<see cref="CreateSnapshot"/>) вместе с
+/// журналом после него восстанавливает симуляцию без повтора всей истории (ADR-0017).
 /// </remarks>
 public sealed class PigeonSimulation
 {
@@ -29,27 +30,94 @@ public sealed class PigeonSimulation
     private readonly RestOrWanderPolicy _policy = new();
     private readonly Queue<JournalEntry> _pending = new();
     private readonly List<JournalEntry> _journal = [];
+    private readonly long _journalOffset;
 
     public PigeonSimulation(ulong seed, SimulationOptions options)
+        : this(options, CreateScheduler(options), new RandomStreams(seed), new PigeonState(), tick: 0, journalOffset: 0)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        options.Validate();
+    }
 
+    private PigeonSimulation(
+        SimulationOptions options,
+        FixedStepScheduler scheduler,
+        RandomStreams random,
+        PigeonState pigeon,
+        long tick,
+        long journalOffset)
+    {
         _options = options;
-        _scheduler = new FixedStepScheduler(options);
-        _random = new RandomStreams(seed);
+        _scheduler = scheduler;
+        _random = random;
         _decisionRandom = _random.Get(DecisionStreamName);
+        _journalOffset = journalOffset;
+        Pigeon = pigeon;
+        Tick = tick;
     }
 
     public ulong Seed => _random.RootSeed;
 
+    public SimulationOptions Options => _options;
+
     /// <summary>Номер последнего выполненного тика; первый тик — 1.</summary>
     public long Tick { get; private set; }
 
-    public PigeonState Pigeon { get; } = new();
+    public PigeonState Pigeon { get; }
 
-    /// <summary>Все применённые входы в порядке применения.</summary>
+    /// <summary>
+    /// Применённые входы в порядке применения — с начала симуляции или с момента восстановления
+    /// из снимка. Глобальная позиция первой записи — <see cref="JournalOffset"/>.
+    /// </summary>
     public IReadOnlyList<JournalEntry> Journal => _journal;
+
+    /// <summary>Сколько входов было применено до восстановления из снимка.</summary>
+    public long JournalOffset => _journalOffset;
+
+    /// <summary>Полная длина журнала с начала жизни симуляции.</summary>
+    public long JournalLength => _journalOffset + _journal.Count;
+
+    /// <summary>Восстанавливает симуляцию из снимка: дальше она идёт так же, как исходная.</summary>
+    public static PigeonSimulation Restore(SimulationSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot.Validate();
+
+        var simulation = new PigeonSimulation(
+            snapshot.Options,
+            new FixedStepScheduler(snapshot.Options, snapshot.Accumulated),
+            RandomStreams.Restore(snapshot.Seed, snapshot.RandomStreams),
+            PigeonState.FromSnapshot(snapshot.Pigeon),
+            snapshot.Tick,
+            snapshot.JournalLength);
+
+        foreach (var entry in snapshot.Pending)
+        {
+            simulation._pending.Enqueue(entry);
+        }
+
+        return simulation;
+    }
+
+    /// <summary>Неизменяемый снимок текущего состояния; безопасно передавать в другой поток.</summary>
+    public SimulationSnapshot CreateSnapshot() =>
+        new(
+            SimulationSnapshot.CurrentFormatVersion,
+            Seed,
+            _options,
+            Tick,
+            _scheduler.Accumulated,
+            Pigeon.ToSnapshot(),
+            [.. _random.Snapshot()],
+            JournalLength,
+            [.. _pending]);
+
+    /// <summary>Записи журнала, начиная с глобальной позиции <paramref name="position"/>.</summary>
+    public IReadOnlyList<JournalEntry> GetJournalFrom(long position)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(position, _journalOffset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(position, JournalLength);
+
+        return [.. _journal.Skip((int)(position - _journalOffset))];
+    }
 
     /// <summary>Воспроизводит симуляцию по журналу и выполняет <paramref name="ticks"/> тиков.</summary>
     public static PigeonSimulation Replay(
@@ -108,8 +176,14 @@ public sealed class PigeonSimulation
         hasher.Add(Tick);
         Pigeon.AddTo(hasher);
         _random.AddTo(hasher);
-        hasher.Add(_journal.Count);
+        hasher.Add(JournalLength);
         return hasher.Value;
+    }
+
+    private static FixedStepScheduler CreateScheduler(SimulationOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new FixedStepScheduler(options);
     }
 
     private void ExecuteTick()
