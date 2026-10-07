@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../Pigeon.Common/Pigeon.Common.csproj" />
+    <ProjectReference Include="../Pigeon.Core/Pigeon.Core.csproj" />
+  </ItemGroup>
+
+</Project>

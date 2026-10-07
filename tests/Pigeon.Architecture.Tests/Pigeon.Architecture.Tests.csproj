@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Сборки ядра нужны в выходном каталоге, чтобы проверять их ссылки. -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Pigeon.Common/Pigeon.Common.csproj" />
+    <ProjectReference Include="../../src/Pigeon.Core/Pigeon.Core.csproj" />
+    <ProjectReference Include="../../src/Pigeon.World.Abstractions/Pigeon.World.Abstractions.csproj" />
+    <ProjectReference Include="../../src/Pigeon.AI/Pigeon.AI.csproj" />
+    <ProjectReference Include="../../src/Pigeon.Simulation/Pigeon.Simulation.csproj" />
+    <ProjectReference Include="../../src/Pigeon.World.Desktop/Pigeon.World.Desktop.csproj" />
+    <ProjectReference Include="../../src/Pigeon.World.City/Pigeon.World.City.csproj" />
+    <ProjectReference Include="../../src/Pigeon.World.City.Generation/Pigeon.World.City.Generation.csproj" />
+  </ItemGroup>
+
+</Project>

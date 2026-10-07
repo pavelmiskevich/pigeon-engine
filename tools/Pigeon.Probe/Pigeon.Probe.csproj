@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Pigeon.Desktop.Windows/Pigeon.Desktop.Windows.csproj" />
+    <ProjectReference Include="../../src/Pigeon.Desktop.MacOS/Pigeon.Desktop.MacOS.csproj" />
+    <ProjectReference Include="../../src/Pigeon.Desktop.Linux/Pigeon.Desktop.Linux.csproj" />
+  </ItemGroup>
+
+</Project>
