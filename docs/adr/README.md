@@ -26,7 +26,7 @@
 | [0014](0014-browser-runtime.md) | Browser runtime | Proposed |
 | [0015](0015-autonomous-always-present.md) | Autonomous присутствует всегда | Proposed |
 | [0016](0016-determinism-contract.md) | Контракт детерминизма | Accepted |
-| [0017](0017-persistence-journal-snapshots.md) | Журнал + снимки + миграции | Proposed |
+| [0017](0017-persistence-journal-snapshots.md) | Журнал + снимки + миграции | Accepted |
 | [0018](0018-domain-vs-integration-events.md) | Доменные и интеграционные события | Proposed |
 | [0019](0019-no-postgresql-on-desktop.md) | Нет PostgreSQL на Desktop | Proposed |
 | [0020](0020-privacy-scope-v1.md) | Privacy scope v1 | Proposed |

@@ -1,8 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Pigeon.Common/Pigeon.Common.csproj" />
     <ProjectReference Include="../Pigeon.Core/Pigeon.Core.csproj" />
+    <ProjectReference Include="../Pigeon.Simulation/Pigeon.Simulation.csproj" />
   </ItemGroup>
 
 </Project>

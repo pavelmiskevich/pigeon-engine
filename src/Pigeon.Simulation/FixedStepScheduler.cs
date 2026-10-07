@@ -17,13 +17,25 @@ public sealed class FixedStepScheduler
     private long _accumulatedTicks;
 
     public FixedStepScheduler(SimulationOptions options)
+        : this(options, TimeSpan.Zero)
+    {
+    }
+
+    /// <param name="accumulated">Накопленное время из снимка: меньше одного шага.</param>
+    public FixedStepScheduler(SimulationOptions options, TimeSpan accumulated)
     {
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
+        ArgumentOutOfRangeException.ThrowIfLessThan(accumulated, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(accumulated, options.Step);
 
         _stepTicks = options.Step.Ticks;
         _maxTicksPerAdvance = options.MaxTicksPerAdvance;
+        _accumulatedTicks = accumulated.Ticks;
     }
+
+    /// <summary>Время, накопленное сверх выполненных шагов.</summary>
+    public TimeSpan Accumulated => TimeSpan.FromTicks(_accumulatedTicks);
 
     public AdvanceResult Advance(TimeSpan realDelta)
     {

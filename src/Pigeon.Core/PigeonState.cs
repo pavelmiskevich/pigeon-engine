@@ -16,6 +16,28 @@ public sealed class PigeonState
     /// <summary>Тик, в котором началось текущее намерение.</summary>
     public long IntentStartedTick { get; private set; }
 
+    public static PigeonState FromSnapshot(PigeonStateSnapshot snapshot)
+    {
+        if (!Enum.IsDefined(snapshot.Intent))
+        {
+            throw new ArgumentException($"Неизвестное намерение в снимке: {(int)snapshot.Intent}.", nameof(snapshot));
+        }
+
+        if (snapshot.Fatigue is < 0.0 or > 1.0 || double.IsNaN(snapshot.Fatigue))
+        {
+            throw new ArgumentException($"Усталость в снимке вне диапазона 0..1: {snapshot.Fatigue}.", nameof(snapshot));
+        }
+
+        return new PigeonState
+        {
+            Fatigue = snapshot.Fatigue,
+            Intent = snapshot.Intent,
+            IntentStartedTick = snapshot.IntentStartedTick,
+        };
+    }
+
+    public PigeonStateSnapshot ToSnapshot() => new(Fatigue, Intent, IntentStartedTick);
+
     public void ChangeFatigue(double delta) => Fatigue = Math.Clamp(Fatigue + delta, 0.0, 1.0);
 
     public void StartIntent(IntentKind intent, long tick)

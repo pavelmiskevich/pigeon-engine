@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Pigeon.Persistence.Sqlite/Pigeon.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="../../src/Pigeon.Simulation/Pigeon.Simulation.csproj" />
+    <!-- Собирается до тестов; запускается отдельным процессом в CrashRecoveryTests. -->
+    <ProjectReference Include="../Pigeon.Persistence.CrashWriter/Pigeon.Persistence.CrashWriter.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
