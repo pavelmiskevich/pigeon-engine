@@ -1499,7 +1499,7 @@ features.
 | [0014](../adr/0014-browser-runtime.md) | Браузер: ядро в .NET WASM + рендер на TypeScript | Proposed |
 | [0015](../adr/0015-autonomous-always-present.md) | Autonomous присутствует всегда, остальные — советники | Proposed |
 | [0016](../adr/0016-determinism-contract.md) | Контракт детерминизма | Accepted |
-| [0017](../adr/0017-persistence-journal-snapshots.md) | Журнал + снимки + миграции | Proposed |
+| [0017](../adr/0017-persistence-journal-snapshots.md) | Журнал + снимки + миграции | Accepted |
 | [0018](../adr/0018-domain-vs-integration-events.md) | Доменные и интеграционные события раздельно | Proposed |
 | [0019](../adr/0019-no-postgresql-on-desktop.md) | Нет PostgreSQL на Desktop | Proposed |
 | [0020](../adr/0020-privacy-scope-v1.md) | Privacy scope v1 | Proposed |
