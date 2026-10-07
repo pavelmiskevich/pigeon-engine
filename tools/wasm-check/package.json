@@ -1,0 +1,12 @@
+{
+  "name": "pigeon-wasm-check",
+  "private": true,
+  "description": "Запуск браузерного харнесса Pigeon.Wasm.Harness в headless Chrome и сверка эталонных хешей",
+  "type": "module",
+  "scripts": {
+    "check": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

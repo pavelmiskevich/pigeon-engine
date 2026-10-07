@@ -11,3 +11,7 @@ obj/
 *.DotSettings.user
 TestResults/
 *.trx
+
+# Артефакты публикации и зависимости инструментов
+artifacts/
+node_modules/

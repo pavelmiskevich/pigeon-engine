@@ -46,3 +46,38 @@ jobs:
 
       - name: Test
         run: dotnet test --solution PigeonEngine.slnx -c Release --no-build
+
+  # Ядро в .NET WebAssembly: те же эталонные хеши, что в .NET-тестах, в headless Chrome
+  # (MVP-0, S0.7; ADR-0014, ADR-0016).
+  core-in-wasm:
+    name: core-in-wasm
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tools/wasm-check/package-lock.json
+
+      - name: Publish harness
+        run: dotnet publish tests/Pigeon.Wasm.Harness -c Release -o artifacts/wasm-harness
+
+      - name: Install runner
+        working-directory: tools/wasm-check
+        run: npm ci --no-audit --no-fund
+
+      - name: Check golden hashes in headless Chrome
+        working-directory: tools/wasm-check
+        run: node run.mjs ../../artifacts/wasm-harness/wwwroot
+
+      - name: Report publish size
+        run: node tools/wasm-check/publish-size.mjs artifacts/wasm-harness/wwwroot >> "$GITHUB_STEP_SUMMARY"

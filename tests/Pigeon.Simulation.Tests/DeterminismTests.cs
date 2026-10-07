@@ -1,36 +1,22 @@
 using Pigeon.Common.Randomness;
 using Pigeon.Common.Time;
 using Pigeon.Core;
+using Pigeon.Testing;
 
 namespace Pigeon.Simulation.Tests;
 
 /// <summary>Контракт детерминизма (ТЗ §3.3, ADR-0016).</summary>
 public sealed class DeterminismTests
 {
-    private const ulong Seed = 0x5EED_0001UL;
-
-    /// <summary>
-    /// Эталонный хеш, одинаковый на всех ОС и архитектурах CI. Если меняется логика симуляции,
-    /// хеш законно меняется: новое значение фиксируется в том же PR с объяснением. Если хеш
-    /// разошёлся только на одной платформе — это нарушение детерминизма, а не повод обновить эталон.
-    /// </summary>
-    private const ulong GoldenHash = 0x773A_5AF9_27CC_B30FUL;
+    private const ulong Seed = GoldenSimulation.Seed;
 
     private static readonly SimulationOptions Options = SimulationOptions.Desktop;
 
+    /// <summary>Эталон одинаков на всех ОС и архитектурах CI и в WASM (см. <see cref="GoldenSimulation"/>).</summary>
     [Fact]
     public void GoldenRun_ProducesTheSameHashOnEveryPlatform()
     {
-        JournalEntry[] journal =
-        [
-            new(123, new UserPoked()),
-            new(456, new UserPoked()),
-            new(4_567, new UserPoked()),
-        ];
-
-        var simulation = PigeonSimulation.Replay(Seed, Options, journal, 10_000);
-
-        Assert.Equal(GoldenHash, simulation.ComputeStateHash());
+        Assert.Equal(GoldenSimulation.ExpectedHash, GoldenSimulation.Run());
     }
 
     [Fact]
