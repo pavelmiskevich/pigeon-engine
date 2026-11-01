@@ -89,6 +89,6 @@ internal static partial class Redactor
         return AccountId().Replace(redacted, "user_redacted");
     }
 
-    [GeneratedRegex(@"user_[A-Za-z0-9]{8,}")]
+    [GeneratedRegex(@"\buser_[A-Za-z0-9]{20,}\b")]
     private static partial Regex AccountId();
 }
