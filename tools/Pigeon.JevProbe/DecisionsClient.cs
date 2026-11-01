@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 
 namespace Pigeon.JevProbe;
@@ -76,8 +77,18 @@ internal sealed class DecisionsClient : IDisposable
     public string Redact(string text) => Redactor.Redact(text, _apiKey);
 }
 
-internal static class Redactor
+internal static partial class Redactor
 {
-    public static string Redact(string text, string? secret) =>
-        string.IsNullOrEmpty(secret) ? text : text.Replace(secret, "***", StringComparison.Ordinal);
+    /// <summary>
+    /// Убирает ключ и идентификаторы аккаунта OpenRouter: ответы с ошибкой содержат
+    /// <c>user_id</c> владельца ключа.
+    /// </summary>
+    public static string Redact(string text, string? secret)
+    {
+        var redacted = string.IsNullOrEmpty(secret) ? text : text.Replace(secret, "***", StringComparison.Ordinal);
+        return AccountId().Replace(redacted, "user_redacted");
+    }
+
+    [GeneratedRegex(@"user_[A-Za-z0-9]{8,}")]
+    private static partial Regex AccountId();
 }

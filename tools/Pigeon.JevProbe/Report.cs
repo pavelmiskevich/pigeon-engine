@@ -11,7 +11,7 @@ internal static class Report
 
     /// <summary>ε и w из ТЗ §17.4.</summary>
     public const double BlendEpsilon = 0.05;
-    public const double BlendWeight = 1.0;
+    public static readonly double[] BlendWeights = [0.5, 1.0];
 
     /// <summary>Режимы частоты ТЗ §18 при 8 часах в день, 30 дней.</summary>
     private const double AdaptiveRequestsPerMonth = 1.0 * 60 * 8 * 30;
@@ -43,8 +43,8 @@ internal static class Report
         sb.AppendLine();
         sb.AppendLine("Задержка — до полного получения ответа, только успешные запросы, мс.");
         sb.AppendLine();
-        sb.AppendLine("| Модель | Снимок | Запросов | Успешно | Ошибки | p50 | p90 | p95 | p99 | max | > 3 с | первый |");
-        sb.AppendLine("|--------|--------|---------:|--------:|--------|----:|----:|----:|----:|----:|------:|-------:|");
+        sb.AppendLine("| Модель | Снимок | Запросов | Успешно | Ошибки | p50 | p90 | p95 | p99 | max | > 1 с | > 3 с | первый |");
+        sb.AppendLine("|--------|--------|---------:|--------:|--------|----:|----:|----:|----:|----:|------:|------:|-------:|");
         foreach (var group in records.GroupBy(r => r.Model).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
             var ok = group.Where(r => r.IsOk).Select(r => r.LatencyMs).Order().ToList();
@@ -53,12 +53,13 @@ internal static class Report
                 .OrderBy(g => g.Key, StringComparer.Ordinal)
                 .Select(g => $"{g.Key}: {g.Count()}"));
             var snapshots = string.Join(", ", group.Select(r => r.ModelSnapshot).OfType<string>().Distinct().Order(StringComparer.Ordinal));
+            var overSecond = group.Count(r => r.LatencyMs > 1000 || r.Outcome == Outcomes.Timeout);
             var slow = group.Count(r => r.LatencyMs > SpecTimeout.TotalMilliseconds || r.Outcome == Outcomes.Timeout);
             var first = group.MinBy(r => r.Index)!;
 
             sb.AppendLine(Inv, $"| `{group.Key}` | {snapshots} | {group.Count()} | {ok.Count} | {(errors.Length == 0 ? "—" : errors)} "
                 + $"| {Ms(Percentile(ok, 50))} | {Ms(Percentile(ok, 90))} | {Ms(Percentile(ok, 95))} | {Ms(Percentile(ok, 99))} "
-                + $"| {Ms(ok.LastOrDefault())} | {Pct(slow, group.Count())} | {Ms(first.LatencyMs)} |");
+                + $"| {Ms(ok.LastOrDefault())} | {Pct(overSecond, group.Count())} | {Pct(slow, group.Count())} | {Ms(first.LatencyMs)} |");
         }
 
         sb.AppendLine();
@@ -95,15 +96,15 @@ internal static class Report
             + "распределениями выбора разных архетипов в одной ситуации. Больше — выбор сильнее зависит от личности.");
         sb.AppendLine("- **Разных лидеров** — сколько разных вариантов-лидеров дают 10 архетипов в одной ситуации, среднее по ситуациям.");
         sb.AppendLine("- **Совпадение** — лидер Jev совпадает с лидером Autonomous; **в пуле** — лидер Jev входит в лучшие K Autonomous.");
-        sb.AppendLine(Inv, $"- **Смена после смешивания** — `utility × (ε + p)^w` при ε = {BlendEpsilon}, w = {BlendWeight} (ТЗ §17.4) меняет лидера Utility.");
+        sb.AppendLine(Inv, $"- **Смена после смешивания** — `utility × (ε + p)^w` при ε = {BlendEpsilon} и w = 0.5 или 1 (ТЗ §17.4) меняет лидера Utility.");
         sb.AppendLine("- **Нестабильность** — доля сценариев, где лидер Jev различается между повторами; **max Δp** — средний максимальный разброс вероятности.");
         sb.AppendLine();
-        sb.AppendLine("| Источник | Вариант | Разброс по архетипам | Разных лидеров | Совпадение | В пуле | Смена после смешивания | confidence | Нестабильность | max Δp |");
-        sb.AppendLine("|----------|---------|------:|------:|------:|------:|------:|------:|------:|------:|");
+        sb.AppendLine("| Источник | Вариант | Разброс по архетипам | Разных лидеров | Совпадение | В пуле | Смена, w = 0.5 | Смена, w = 1 | confidence | Нестабильность | max Δp |");
+        sb.AppendLine("|----------|---------|------:|------:|------:|------:|------:|------:|------:|------:|------:|");
 
         var autonomous = ScenarioCatalog.All.ToDictionary(s => s.Key, AutonomousBaseline.Distribution);
         var (autoSpread, autoLeaders) = Spread(autonomous);
-        sb.AppendLine(Inv, $"| Autonomous | — | {autoSpread:0.000} | {autoLeaders:0.0} | — | — | — | — | — | — |");
+        sb.AppendLine(Inv, $"| Autonomous | — | {autoSpread:0.000} | {autoLeaders:0.0} | — | — | — | — | — | — | — |");
 
         foreach (var group in records.Where(r => r.IsOk)
             .GroupBy(r => (r.Model, r.Variant))
@@ -113,7 +114,8 @@ internal static class Report
             var jev = byScenario.ToDictionary(kv => kv.Key, kv => MeanDistribution(kv.Value));
             var (spread, leaders) = Spread(jev);
 
-            int agree = 0, inPool = 0, blendChanged = 0, unstable = 0;
+            int agree = 0, inPool = 0, unstable = 0;
+            var blendChanged = new int[BlendWeights.Length];
             double maxDeltaSum = 0;
             foreach (var scenario in ScenarioCatalog.All.Where(s => jev.ContainsKey(s.Key)))
             {
@@ -124,8 +126,12 @@ internal static class Report
                 agree += jevLeader == Leader(auto) ? 1 : 0;
                 inPool += auto[jevLeader] > 0 ? 1 : 0;
 
-                var blended = scores.ToDictionary(s => s.Key, s => s.Value * Math.Pow(BlendEpsilon + p.GetValueOrDefault(s.Key), BlendWeight), StringComparer.Ordinal);
-                blendChanged += Leader(blended) == Leader(scores) ? 0 : 1;
+                for (var w = 0; w < BlendWeights.Length; w++)
+                {
+                    var weight = BlendWeights[w];
+                    var blended = scores.ToDictionary(s => s.Key, s => s.Value * Math.Pow(BlendEpsilon + p.GetValueOrDefault(s.Key), weight), StringComparer.Ordinal);
+                    blendChanged[w] += Leader(blended) == Leader(scores) ? 0 : 1;
+                }
 
                 var runs = byScenario[scenario.Key];
                 unstable += runs.Select(r => r.Choice).Distinct().Count() > 1 ? 1 : 0;
@@ -139,7 +145,7 @@ internal static class Report
             var n = jev.Count;
             var confidence = group.Select(r => r.Confidence).OfType<double>().DefaultIfEmpty(double.NaN).Average();
             sb.AppendLine(Inv, $"| `{group.Key.Model}` | {group.Key.Variant} | {spread:0.000} | {leaders:0.0} | {Pct(agree, n)} | {Pct(inPool, n)} "
-                + $"| {Pct(blendChanged, n)} | {confidence:0.00} | {Pct(unstable, n)} | {maxDeltaSum / Math.Max(1, n):0.000} |");
+                + $"| {string.Join(" | ", blendChanged.Select(c => Pct(c, n)))} | {confidence:0.00} | {Pct(unstable, n)} | {maxDeltaSum / Math.Max(1, n):0.000} |");
         }
 
         sb.AppendLine();
