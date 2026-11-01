@@ -1,0 +1,78 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "want",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "comfort",
+          "toilet_pressure": "urgent"
+        },
+        "mood": "Grumpy"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "night",
+        "user": {
+          "present": false,
+          "idle": "long_away",
+          "active_app_category": "none",
+          "fullscreen": false
+        },
+        "recent_events": []
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "poop_taskbar_corner": "Poop in a discreet corner of the taskbar.",
+          "poop_on_active_window": "Poop right on top of the active window edge.",
+          "leave_offscreen": "Fly off the screen to take care of business.",
+          "sleep_taskbar_corner": "Ignore it and go to sleep.",
+          "wander_desktop": "Wander around restlessly."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "poop_taskbar_corner",
+        "probabilities": {
+          "poop_taskbar_corner": 0.66,
+          "poop_on_active_window": 0.08,
+          "leave_offscreen": 0.12,
+          "sleep_taskbar_corner": 0.01,
+          "wander_desktop": 0.13
+        },
+        "confidence": 0.57
+      }
+    },
+    "usage": {
+      "input_tokens": 678,
+      "output_tokens": 77,
+      "cost": 0.000028476
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

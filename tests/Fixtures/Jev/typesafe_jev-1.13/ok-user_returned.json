@@ -1,0 +1,113 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "comfort",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Excited"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "afternoon",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "file_manager",
+          "fullscreen": false
+        },
+        "recent_events": [
+          "user_returned_after_long_absence"
+        ],
+        "significant_event": "user_returned_after_long_absence"
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "seek_attention_user": "Run up to the cursor, coo and puff up.",
+          "follow_cursor": "Follow the cursor around the screen.",
+          "play_cursor": "Hop and try to catch the cursor.",
+          "ignore_user_groom": "Demonstratively groom and ignore the user for a while.",
+          "leave_offscreen": "Fly off the screen edge in a huff and come back later.",
+          "perch_window_top": "Perch on the window top and watch the user from above."
+        }
+      },
+      "remember": {
+        "type": "score",
+        "instructions": "How important is `situation.significant_event` for this pigeon's memory?",
+        "criteria": [
+          "Forgettable routine moment",
+          "Minor moment that fades within the hour",
+          "Notable moment worth remembering for a day",
+          "Important moment to remember for weeks",
+          "Life-defining moment that is never forgotten"
+        ]
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "seek_attention_user",
+        "probabilities": {
+          "seek_attention_user": 0.89,
+          "follow_cursor": 0.05,
+          "play_cursor": 0.04,
+          "ignore_user_groom": 0,
+          "leave_offscreen": 0,
+          "perch_window_top": 0.02
+        },
+        "confidence": 0.87
+      },
+      "remember": {
+        "type": "score",
+        "score": 2.57,
+        "legend": {
+          "0": "Forgettable routine moment",
+          "1": "Minor moment that fades within the hour",
+          "2": "Notable moment worth remembering for a day",
+          "3": "Important moment to remember for weeks",
+          "4": "Life-defining moment that is never forgotten"
+        },
+        "probabilities": {
+          "0": 0,
+          "1": 0.01,
+          "2": 0.4,
+          "3": 0.59,
+          "4": 0
+        },
+        "confidence": 0.65
+      }
+    },
+    "usage": {
+      "input_tokens": 824,
+      "output_tokens": 90,
+      "cost": 0.000034608
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

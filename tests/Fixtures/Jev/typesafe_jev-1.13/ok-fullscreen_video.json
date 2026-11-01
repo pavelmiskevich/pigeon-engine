@@ -1,0 +1,76 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "want",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Bored"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "evening",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "video",
+          "fullscreen": true
+        },
+        "recent_events": []
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "rest_screen_corner": "Sit still in the screen corner.",
+          "observe_video": "Quietly watch the video from the corner.",
+          "groom_in_place": "Groom quietly.",
+          "leave_offscreen": "Quietly fly off the screen and come back later."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "observe_video",
+        "probabilities": {
+          "rest_screen_corner": 0.16,
+          "observe_video": 0.66,
+          "groom_in_place": 0.14,
+          "leave_offscreen": 0.04
+        },
+        "confidence": 0.55
+      }
+    },
+    "usage": {
+      "input_tokens": 643,
+      "output_tokens": 56,
+      "cost": 0.000027006
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

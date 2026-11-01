@@ -1,0 +1,124 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.14",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "comfort",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "comfort",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Content"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "morning",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "ide",
+          "fullscreen": false
+        },
+        "recent_events": [
+          "monitor_connected"
+        ],
+        "unusual_event": "monitor_connected",
+        "significant_event": "first_multi_monitor_transition"
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "relocate_new_monitor": "Fly over to the new monitor and claim it.",
+          "explore_new_monitor_edge": "Walk to the edge between monitors and peek over.",
+          "observe_from_perch": "Watch the new monitor from the current perch.",
+          "perch_favourite": "Stay on the favourite perch on the main monitor.",
+          "hide_behind_taskbar": "Hide until the change settles."
+        }
+      },
+      "react": {
+        "type": "noul",
+        "instructions": "Would this pigeon visibly react to `situation.unusual_event`?",
+        "criteria": {
+          "true": "The pigeon notices the event and visibly reacts to it.",
+          "false": "The pigeon does not care and carries on."
+        }
+      },
+      "remember": {
+        "type": "score",
+        "instructions": "How important is `situation.significant_event` for this pigeon's memory?",
+        "criteria": [
+          "Forgettable routine moment",
+          "Minor moment that fades within the hour",
+          "Notable moment worth remembering for a day",
+          "Important moment to remember for weeks",
+          "Life-defining moment that is never forgotten"
+        ]
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.14-20261014",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "explore_new_monitor_edge",
+        "probabilities": {
+          "relocate_new_monitor": 0.07,
+          "explore_new_monitor_edge": 0.68,
+          "observe_from_perch": 0.24,
+          "perch_favourite": 0.01,
+          "hide_behind_taskbar": 0
+        },
+        "confidence": 0.6
+      },
+      "react": {
+        "type": "noul",
+        "noul": 0.63
+      },
+      "remember": {
+        "type": "score",
+        "score": 2.33,
+        "legend": {
+          "0": "Forgettable routine moment",
+          "1": "Minor moment that fades within the hour",
+          "2": "Notable moment worth remembering for a day",
+          "3": "Important moment to remember for weeks",
+          "4": "Life-defining moment that is never forgotten"
+        },
+        "probabilities": {
+          "0": 0.01,
+          "1": 0.05,
+          "2": 0.56,
+          "3": 0.37,
+          "4": 0.01
+        },
+        "confidence": 0.62
+      }
+    },
+    "usage": {
+      "input_tokens": 852,
+      "output_tokens": 106,
+      "cost": 0.000035784
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

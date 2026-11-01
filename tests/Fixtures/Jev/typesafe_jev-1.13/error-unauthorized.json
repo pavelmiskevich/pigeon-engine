@@ -1,0 +1,61 @@
+{
+  "http_status": 401,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "very high",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "very high",
+          "calmness": "medium",
+          "independence": "high",
+          "energy": "high",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "low"
+        },
+        "needs": {
+          "fatigue": "comfort",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "comfort",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Content"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "morning",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "ide",
+          "fullscreen": false
+        },
+        "recent_events": []
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "wander_taskbar": "Stroll along the taskbar without a goal.",
+          "explore_new_window": "Walk over to the window that opened a minute ago and inspect it.",
+          "observe_cursor": "Sit and watch the cursor move.",
+          "perch_window_top": "Perch on the top edge of the active window.",
+          "groom_in_place": "Groom feathers where it stands.",
+          "seek_attention_user": "Walk near the cursor and coo to get the user's attention."
+        }
+      }
+    }
+  },
+  "response": {
+    "error": {
+      "message": "Missing Authentication header",
+      "code": 401
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "comfort",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Playful"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "afternoon",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "chat",
+          "fullscreen": false
+        },
+        "recent_events": [
+          "cursor_circling_near_pigeon"
+        ],
+        "unusual_event": "cursor_circling_near_pigeon"
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "play_catch_cursor": "Hop after the cursor and try to catch it.",
+          "follow_cursor": "Walk after the cursor at a polite distance.",
+          "observe_cursor": "Sit and follow the cursor with its head only.",
+          "flee_cursor": "Fly away from the cursor.",
+          "ignore_cursor_groom": "Ignore the cursor and groom.",
+          "mischief_sit_on_cursor": "Plop down right where the cursor is heading."
+        }
+      },
+      "react": {
+        "type": "noul",
+        "instructions": "Would this pigeon visibly react to `situation.unusual_event`?",
+        "criteria": {
+          "true": "The pigeon notices the event and visibly reacts to it.",
+          "false": "The pigeon does not care and carries on."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "play_catch_cursor",
+        "probabilities": {
+          "play_catch_cursor": 0.8,
+          "follow_cursor": 0.12,
+          "observe_cursor": 0.06,
+          "flee_cursor": 0,
+          "ignore_cursor_groom": 0,
+          "mischief_sit_on_cursor": 0.02
+        },
+        "confidence": 0.76
+      },
+      "react": {
+        "type": "noul",
+        "noul": 0.68
+      }
+    },
+    "usage": {
+      "input_tokens": 779,
+      "output_tokens": 96,
+      "cost": 0.000032718
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}
