@@ -1,0 +1,126 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "want",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Grumpy"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "afternoon",
+        "user": {
+          "present": true,
+          "idle": "short_break",
+          "active_app_category": "music",
+          "fullscreen": false
+        },
+        "recent_events": [
+          "favourite_perch_window_closed"
+        ],
+        "unusual_event": "favourite_perch_window_closed",
+        "significant_event": "lost_favourite_perch"
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "perch_new_window": "Pick the nearest window top as a new perch.",
+          "mischief_sit_on_active": "Sit on the active window in protest.",
+          "seek_attention_complain": "Walk to the cursor and complain loudly.",
+          "explore_for_perch": "Explore the screen for a better perch.",
+          "relocate_other_area": "Move to a different part of the screen entirely.",
+          "rest_taskbar": "Sulk on the taskbar."
+        }
+      },
+      "react": {
+        "type": "noul",
+        "instructions": "Would this pigeon visibly react to `situation.unusual_event`?",
+        "criteria": {
+          "true": "The pigeon notices the event and visibly reacts to it.",
+          "false": "The pigeon does not care and carries on."
+        }
+      },
+      "remember": {
+        "type": "score",
+        "instructions": "How important is `situation.significant_event` for this pigeon's memory?",
+        "criteria": [
+          "Forgettable routine moment",
+          "Minor moment that fades within the hour",
+          "Notable moment worth remembering for a day",
+          "Important moment to remember for weeks",
+          "Life-defining moment that is never forgotten"
+        ]
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "seek_attention_complain",
+        "probabilities": {
+          "perch_new_window": 0.13,
+          "mischief_sit_on_active": 0.11,
+          "seek_attention_complain": 0.42,
+          "explore_for_perch": 0.22,
+          "relocate_other_area": 0,
+          "rest_taskbar": 0.12
+        },
+        "confidence": 0.3
+      },
+      "react": {
+        "type": "noul",
+        "noul": 0.86
+      },
+      "remember": {
+        "type": "score",
+        "score": 2.54,
+        "legend": {
+          "0": "Forgettable routine moment",
+          "1": "Minor moment that fades within the hour",
+          "2": "Notable moment worth remembering for a day",
+          "3": "Important moment to remember for weeks",
+          "4": "Life-defining moment that is never forgotten"
+        },
+        "probabilities": {
+          "0": 0,
+          "1": 0.01,
+          "2": 0.44,
+          "3": 0.54,
+          "4": 0.01
+        },
+        "confidence": 0.61
+      }
+    },
+    "usage": {
+      "input_tokens": 888,
+      "output_tokens": 116,
+      "cost": 0.000037296
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

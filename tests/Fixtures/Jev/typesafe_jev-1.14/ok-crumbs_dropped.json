@@ -1,0 +1,80 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.14",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "want",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Happy"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "noon",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "chat",
+          "fullscreen": false
+        },
+        "recent_events": [
+          "crumbs_dropped_by_user"
+        ]
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "eat_crumbs": "Walk to the crumbs and peck them.",
+          "observe_crumbs": "Watch the crumbs from a distance first.",
+          "seek_attention_user": "Coo at the user as a thank-you.",
+          "mischief_scatter_crumbs": "Kick the crumbs around the taskbar.",
+          "rest_in_place": "Stay put and rest."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.14-20261014",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "eat_crumbs",
+        "probabilities": {
+          "eat_crumbs": 0.86,
+          "observe_crumbs": 0.09,
+          "seek_attention_user": 0.04,
+          "mischief_scatter_crumbs": 0.01,
+          "rest_in_place": 0
+        },
+        "confidence": 0.82
+      }
+    },
+    "usage": {
+      "input_tokens": 673,
+      "output_tokens": 68,
+      "cost": 0.000028266
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

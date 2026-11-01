@@ -1,0 +1,78 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.14",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "urgent",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Sleepy"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "evening",
+        "user": {
+          "present": true,
+          "idle": "away",
+          "active_app_category": "browser",
+          "fullscreen": false
+        },
+        "recent_events": []
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "sleep_taskbar_corner": "Fall asleep in the warm corner of the taskbar.",
+          "rest_window_top": "Sit still on top of the browser window and doze.",
+          "groom_in_place": "Groom feathers before settling down.",
+          "wander_desktop": "Keep strolling around the screen edge.",
+          "seek_attention_user": "Coo at the idle user to wake them up."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.14-20261014",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "sleep_taskbar_corner",
+        "probabilities": {
+          "sleep_taskbar_corner": 0.64,
+          "rest_window_top": 0.29,
+          "groom_in_place": 0.04,
+          "wander_desktop": 0.01,
+          "seek_attention_user": 0.02
+        },
+        "confidence": 0.55
+      }
+    },
+    "usage": {
+      "input_tokens": 676,
+      "output_tokens": 70,
+      "cost": 0.000028392
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}

@@ -32,7 +32,7 @@ cd tools/wasm-check && npm ci && node run.mjs
 | Каталог | Содержание |
 |---------|-----------|
 | `src/` | Движок, миры, хранение, хост Desktop и платформенные адаптеры |
-| `tools/` | Утилиты: `pigeon-probe`, `wasm-check` (запуск WASM-харнесса в headless Chrome) |
+| `tools/` | Утилиты: `pigeon-probe`, `wasm-check` (запуск WASM-харнесса в headless Chrome), `Pigeon.JevProbe` (замер Jev, ключ — только из `OPENROUTER_API_KEY`) |
 | `tests/` | Тесты; `Pigeon.Architecture.Tests` проверяет правила зависимостей ядра; `Shared/` — эталонные сценарии детерминизма; `Pigeon.Wasm.Harness` — те же сценарии в браузере |
 | `build/` | Общие файлы сборки: запрещённые API для ядра и генератора мира |
 | `docs/` | Спецификация, ADR, план работ, исследования |

@@ -1,0 +1,93 @@
+{
+  "http_status": 200,
+  "request": {
+    "model": "typesafe/jev-1.13",
+    "state": {
+      "pigeon": {
+        "personality": {
+          "curiosity": "medium",
+          "playfulness": "medium",
+          "sociability": "medium",
+          "boldness": "medium",
+          "calmness": "medium",
+          "independence": "medium",
+          "energy": "medium",
+          "mischief": "medium",
+          "greed": "medium",
+          "territoriality": "medium"
+        },
+        "needs": {
+          "fatigue": "want",
+          "boredom": "want",
+          "attention": "want",
+          "hunger": "want",
+          "toilet_pressure": "comfort"
+        },
+        "mood": "Startled"
+      },
+      "situation": {
+        "world": "desktop",
+        "time_of_day": "afternoon",
+        "user": {
+          "present": true,
+          "idle": "active",
+          "active_app_category": "office",
+          "fullscreen": false
+        },
+        "recent_events": [
+          "perch_window_shaken"
+        ],
+        "unusual_event": "perch_window_shaken"
+      }
+    },
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "Which of these options would this particular pigeon most likely do next, given its personality, needs, mood and surroundings described in `pigeon` and `situation`?",
+        "criteria": {
+          "flee_offscreen": "Flap away to the far side of the screen.",
+          "hide_behind_taskbar": "Hide behind the taskbar for a while.",
+          "perch_back_same_window": "Land back on the same window as if nothing happened.",
+          "observe_window": "Land nearby and stare at the window suspiciously.",
+          "mischief_peck_window": "Return and peck the window edge in revenge."
+        }
+      },
+      "react": {
+        "type": "noul",
+        "instructions": "Would this pigeon visibly react to `situation.unusual_event`?",
+        "criteria": {
+          "true": "The pigeon notices the event and visibly reacts to it.",
+          "false": "The pigeon does not care and carries on."
+        }
+      }
+    }
+  },
+  "response": {
+    "model": "typesafe/jev-1.13-20260917",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "observe_window",
+        "probabilities": {
+          "flee_offscreen": 0.05,
+          "hide_behind_taskbar": 0.02,
+          "perch_back_same_window": 0.01,
+          "observe_window": 0.91,
+          "mischief_peck_window": 0.01
+        },
+        "confidence": 0.89
+      },
+      "react": {
+        "type": "noul",
+        "noul": 0.89
+      }
+    },
+    "usage": {
+      "input_tokens": 765,
+      "output_tokens": 90,
+      "cost": 0.00003213
+    },
+    "id": "gen-dec-fixture",
+    "provider": "TypeSafe"
+  }
+}
