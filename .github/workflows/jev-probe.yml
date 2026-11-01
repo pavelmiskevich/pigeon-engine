@@ -1,0 +1,76 @@
+name: Jev probe
+
+# Замер Jev через OpenRouter Decisions API (MVP-0, S0.10; ТЗ §17, §18). Запросы платные (центы
+# за прогон), поэтому замер запускается вручную или когда меняется сам замер. Ключ берётся из
+# секрета репозитория OPENROUTER_API_KEY; PR из форков секретов не получают и замер не запускают.
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: Модели через запятую
+        default: typesafe/jev-1.13,typesafe/jev-1.14
+      variants:
+        description: Варианты запроса (plain, scored)
+        default: plain,scored
+      repeat:
+        description: Повторов каждого сценария
+        default: "3"
+  pull_request:
+    paths:
+      - tools/Pigeon.JevProbe/**
+      - .github/workflows/jev-probe.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jev-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: jev-probe
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      PROBE_MODELS: ${{ inputs.models || 'typesafe/jev-1.13,typesafe/jev-1.14' }}
+      PROBE_VARIANTS: ${{ inputs.variants || 'plain,scored' }}
+      PROBE_REPEAT: ${{ inputs.repeat || '3' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build tools/Pigeon.JevProbe -c Release
+
+      - name: Probe
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: >
+          dotnet run --project tools/Pigeon.JevProbe -c Release --no-build --
+          --out artifacts/jev-probe
+          --models "$PROBE_MODELS"
+          --variants "$PROBE_VARIANTS"
+          --repeat "$PROBE_REPEAT"
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f artifacts/jev-probe/summary.md ]; then
+            cat artifacts/jev-probe/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jev-probe
+          path: artifacts/jev-probe
+          if-no-files-found: ignore
+          retention-days: 30

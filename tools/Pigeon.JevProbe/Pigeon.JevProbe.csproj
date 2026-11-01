@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Замер Jev (MVP-0, S0.10; ТЗ §17, §18): задержка, ошибки, размер state, стоимость и сравнение
+    выбора Jev с Autonomous. Ключ OpenRouter читается только из переменной окружения
+    OPENROUTER_API_KEY и никуда не записывается.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+</Project>
