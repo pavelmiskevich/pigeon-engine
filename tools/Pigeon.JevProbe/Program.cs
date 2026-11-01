@@ -283,6 +283,16 @@ internal sealed class FixtureWriter(string directory, Func<string, string> redac
             body = call.Body;
         }
 
+        // Фикстура не должна связываться с аккаунтом: id генерации и user_id убираются.
+        if (body is JsonObject response)
+        {
+            response.Remove("user_id");
+            if (response.ContainsKey("id"))
+            {
+                response["id"] = "gen-dec-fixture";
+            }
+        }
+
         var fixture = new JsonObject
         {
             ["http_status"] = call.HttpStatus,
