@@ -1,0 +1,193 @@
+{
+  "environment": {
+    "os": "Windows",
+    "os_version": "10.0.28000.0",
+    "architecture": "X64",
+    "session": "win32",
+    "compositor": "DWM"
+  },
+  "level": "L3",
+  "missing_for_next_level": [],
+  "monitors": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2560,
+        "height": 1600
+      },
+      "work_area": {
+        "x": 0,
+        "y": 0,
+        "width": 2560,
+        "height": 1516
+      },
+      "scale": 1.75,
+      "is_primary": true
+    }
+  ],
+  "visible_window_count": 19,
+  "protocols": [],
+  "checks": [
+    {
+      "id": "C1",
+      "capability": "transparent_overlay",
+      "status": "available",
+      "verified": true,
+      "mechanism": "WS_EX_LAYERED (попиксельная альфа через UpdateLayeredWindow)",
+      "note": null
+    },
+    {
+      "id": "C2",
+      "capability": "click_through",
+      "status": "available",
+      "verified": true,
+      "mechanism": "WS_EX_LAYERED + WS_EX_TRANSPARENT; прозрачные пиксели пропускают клики",
+      "note": null
+    },
+    {
+      "id": "C3",
+      "capability": "always_on_top",
+      "status": "available",
+      "verified": true,
+      "mechanism": "WS_EX_TOPMOST",
+      "note": null
+    },
+    {
+      "id": "C4",
+      "capability": "no_focus_no_taskbar",
+      "status": "available",
+      "verified": true,
+      "mechanism": "WS_EX_NOACTIVATE + WS_EX_TOOLWINDOW",
+      "note": null
+    },
+    {
+      "id": "C5",
+      "capability": "monitor_enumeration",
+      "status": "available",
+      "verified": true,
+      "mechanism": "EnumDisplayMonitors + GetDpiForMonitor (Per-Monitor V2)",
+      "note": null
+    },
+    {
+      "id": "C6",
+      "capability": "monitor_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "WM_DISPLAYCHANGE, WM_DPICHANGED",
+      "note": "события приходят в оконную процедуру; проба их не дожидается"
+    },
+    {
+      "id": "C7",
+      "capability": "global_cursor",
+      "status": "available",
+      "verified": true,
+      "mechanism": "GetCursorPos",
+      "note": null
+    },
+    {
+      "id": "C8",
+      "capability": "window_geometry",
+      "status": "available",
+      "verified": true,
+      "mechanism": "EnumWindows + DWMWA_EXTENDED_FRAME_BOUNDS, без cloaked",
+      "note": null
+    },
+    {
+      "id": "C9",
+      "capability": "window_z_order",
+      "status": "available",
+      "verified": true,
+      "mechanism": "порядок EnumWindows",
+      "note": null
+    },
+    {
+      "id": "C10",
+      "capability": "window_events",
+      "status": "available",
+      "verified": true,
+      "mechanism": "SetWinEventHook (out-of-context): foreground, location change, show/hide",
+      "note": null
+    },
+    {
+      "id": "C11",
+      "capability": "active_application",
+      "status": "available",
+      "verified": true,
+      "mechanism": "GetForegroundWindow → PID → QueryFullProcessImageName",
+      "note": null
+    },
+    {
+      "id": "C12",
+      "capability": "window_titles",
+      "status": "available",
+      "verified": true,
+      "mechanism": "GetWindowText (проверена только длина)",
+      "note": "читается только при capability Window, ТЗ §14"
+    },
+    {
+      "id": "C13",
+      "capability": "taskbar_geometry",
+      "status": "available",
+      "verified": true,
+      "mechanism": "SHAppBarMessage(ABM_GETTASKBARPOS)",
+      "note": "панель задач: 2560×84 @ (0, 1516)"
+    },
+    {
+      "id": "C14",
+      "capability": "fullscreen_detection",
+      "status": "available",
+      "verified": true,
+      "mechanism": "SHQueryUserNotificationState",
+      "note": "состояние сейчас: 5"
+    },
+    {
+      "id": "C15",
+      "capability": "capture_exclusion",
+      "status": "available",
+      "verified": true,
+      "mechanism": "SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)",
+      "note": null
+    },
+    {
+      "id": "C16",
+      "capability": "idle_time",
+      "status": "available",
+      "verified": true,
+      "mechanism": "GetLastInputInfo",
+      "note": "бездействие: 178 с"
+    },
+    {
+      "id": "C17",
+      "capability": "session_events",
+      "status": "available",
+      "verified": true,
+      "mechanism": "WTSRegisterSessionNotification + WM_POWERBROADCAST",
+      "note": null
+    },
+    {
+      "id": "C18",
+      "capability": "secret_store",
+      "status": "available",
+      "verified": true,
+      "mechanism": "Credential Manager (CredRead)",
+      "note": null
+    },
+    {
+      "id": "C19",
+      "capability": "autostart",
+      "status": "available",
+      "verified": true,
+      "mechanism": "HKCU\\...\\CurrentVersion\\Run (проверено чтение)",
+      "note": null
+    },
+    {
+      "id": "C20",
+      "capability": "all_virtual_desktops",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "WS_EX_TOOLWINDOW + topmost",
+      "note": "закрепление на всех столах — недокументированный API; поведение проверяется вручную"
+    }
+  ]
+}

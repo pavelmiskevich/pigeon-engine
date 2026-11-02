@@ -1,0 +1,195 @@
+{
+  "environment": {
+    "os": "Linux",
+    "os_version": "Ubuntu 24.04.5 LTS",
+    "architecture": "X64",
+    "session": "x11",
+    "compositor": "Openbox"
+  },
+  "level": "L1",
+  "missing_for_next_level": [
+    "C1"
+  ],
+  "monitors": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "work_area": {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1080
+      },
+      "scale": 1,
+      "is_primary": false
+    }
+  ],
+  "visible_window_count": 0,
+  "protocols": [],
+  "checks": [
+    {
+      "id": "C1",
+      "capability": "transparent_overlay",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "_NET_WM_CM_S0",
+      "note": "композитор не запущен: без него прозрачности нет, уровень L1"
+    },
+    {
+      "id": "C2",
+      "capability": "click_through",
+      "status": "available",
+      "verified": true,
+      "mechanism": "XShape input region",
+      "note": null
+    },
+    {
+      "id": "C3",
+      "capability": "always_on_top",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "_NET_WM_STATE_ABOVE",
+      "note": "заявлено оконным менеджером; выполнение зависит от него"
+    },
+    {
+      "id": "C4",
+      "capability": "no_focus_no_taskbar",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_WM_WINDOW_TYPE_UTILITY + _NET_WM_STATE_SKIP_TASKBAR, input hint = false",
+      "note": null
+    },
+    {
+      "id": "C5",
+      "capability": "monitor_enumeration",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "XRandR (XRRGetMonitors)",
+      "note": "масштаб в X11 глобальный (Xft.dpi), не для каждого монитора"
+    },
+    {
+      "id": "C6",
+      "capability": "monitor_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "RRScreenChangeNotify",
+      "note": null
+    },
+    {
+      "id": "C7",
+      "capability": "global_cursor",
+      "status": "available",
+      "verified": true,
+      "mechanism": "XQueryPointer",
+      "note": null
+    },
+    {
+      "id": "C8",
+      "capability": "window_geometry",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_CLIENT_LIST_STACKING + XGetGeometry + _NET_FRAME_EXTENTS",
+      "note": null
+    },
+    {
+      "id": "C9",
+      "capability": "window_z_order",
+      "status": "available",
+      "verified": true,
+      "mechanism": "порядок _NET_CLIENT_LIST_STACKING",
+      "note": null
+    },
+    {
+      "id": "C10",
+      "capability": "window_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "SubstructureNotify и PropertyNotify на корневом окне",
+      "note": null
+    },
+    {
+      "id": "C11",
+      "capability": "active_application",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_ACTIVE_WINDOW → _NET_WM_PID / WM_CLASS",
+      "note": null
+    },
+    {
+      "id": "C12",
+      "capability": "window_titles",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_WM_NAME (не читается пробой)",
+      "note": "читается только при capability Window, ТЗ §14"
+    },
+    {
+      "id": "C13",
+      "capability": "taskbar_geometry",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_WORKAREA и _NET_WM_STRUT_PARTIAL панелей",
+      "note": null
+    },
+    {
+      "id": "C14",
+      "capability": "fullscreen_detection",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_WM_STATE_FULLSCREEN активного окна",
+      "note": null
+    },
+    {
+      "id": "C15",
+      "capability": "capture_exclusion",
+      "status": "unavailable",
+      "verified": false,
+      "mechanism": "—",
+      "note": "в X11 механизма нет"
+    },
+    {
+      "id": "C16",
+      "capability": "idle_time",
+      "status": "available",
+      "verified": true,
+      "mechanism": "XScreenSaverQueryInfo",
+      "note": null
+    },
+    {
+      "id": "C17",
+      "capability": "session_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "logind (D-Bus): PrepareForSleep, Lock/Unlock",
+      "note": null
+    },
+    {
+      "id": "C18",
+      "capability": "secret_store",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "Secret Service (libsecret)",
+      "note": "нет D-Bus-сессии: fallback — зашифрованный файл с предупреждением"
+    },
+    {
+      "id": "C19",
+      "capability": "autostart",
+      "status": "available",
+      "verified": false,
+      "mechanism": "XDG autostart (~/.config/autostart/*.desktop)",
+      "note": null
+    },
+    {
+      "id": "C20",
+      "capability": "all_virtual_desktops",
+      "status": "available",
+      "verified": true,
+      "mechanism": "_NET_WM_DESKTOP = 0xFFFFFFFF",
+      "note": null
+    }
+  ]
+}
