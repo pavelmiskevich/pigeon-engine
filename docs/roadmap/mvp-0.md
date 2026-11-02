@@ -72,6 +72,11 @@
 
 **Готово, когда:** в матрице нет `?` по C1–C14 для Tier-1 и Tier-2 платформ (ТЗ §2.3).
 
+**Ход (2026-11-02):** `pigeon-probe` готов для Windows, macOS, X11 и Wayland. Проверены Windows 11,
+Windows Server 2022 (≈ Windows 10), macOS 26 на раннере CI, X11 и Wayland-композиторы (Sway, KWin,
+Mutter) в headless-режиме — [матрица, §6](../platform/capability-matrix.md#6-результаты-проверки-s03-2026-11-02).
+Осталось: macOS у живого пользователя и C1–C4 на macOS настоящим оверлеем (S0.2).
+
 ### S0.4 — Прототип «голубь на окне» · timebox 1 неделя
 
 На Windows, а также на macOS или X11:

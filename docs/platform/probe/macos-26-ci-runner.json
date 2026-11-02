@@ -1,0 +1,193 @@
+{
+  "environment": {
+    "os": "macOS",
+    "os_version": "26.6.2",
+    "architecture": "Arm64",
+    "session": "quartz",
+    "compositor": "WindowServer"
+  },
+  "level": "L3",
+  "missing_for_next_level": [],
+  "monitors": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1024,
+        "height": 768
+      },
+      "work_area": {
+        "x": 0,
+        "y": 0,
+        "width": 1024,
+        "height": 768
+      },
+      "scale": 1,
+      "is_primary": true
+    }
+  ],
+  "visible_window_count": 0,
+  "protocols": [],
+  "checks": [
+    {
+      "id": "C1",
+      "capability": "transparent_overlay",
+      "status": "available",
+      "verified": false,
+      "mechanism": "NSPanel без рамки, isOpaque = false",
+      "note": null
+    },
+    {
+      "id": "C2",
+      "capability": "click_through",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "ignoresMouseEvents, переключаемый по попаданию курсора в голубя",
+      "note": "флаг действует на всё окно"
+    },
+    {
+      "id": "C3",
+      "capability": "always_on_top",
+      "status": "available",
+      "verified": false,
+      "mechanism": "NSWindow.level = .floating / .statusBar",
+      "note": null
+    },
+    {
+      "id": "C4",
+      "capability": "no_focus_no_taskbar",
+      "status": "available",
+      "verified": false,
+      "mechanism": "non-activating NSPanel + LSUIElement",
+      "note": null
+    },
+    {
+      "id": "C5",
+      "capability": "monitor_enumeration",
+      "status": "available",
+      "verified": true,
+      "mechanism": "CGGetActiveDisplayList + CGDisplayCopyDisplayMode",
+      "note": "рабочая область (без меню-бара и Dock) — через NSScreen.visibleFrame, проба её не читает"
+    },
+    {
+      "id": "C6",
+      "capability": "monitor_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "CGDisplayRegisterReconfigurationCallback",
+      "note": null
+    },
+    {
+      "id": "C7",
+      "capability": "global_cursor",
+      "status": "available",
+      "verified": true,
+      "mechanism": "CGEventGetLocation (без разрешений)",
+      "note": null
+    },
+    {
+      "id": "C8",
+      "capability": "window_geometry",
+      "status": "available",
+      "verified": true,
+      "mechanism": "CGWindowListCopyWindowInfo: kCGWindowBounds (без разрешений)",
+      "note": "обычных окон: 0"
+    },
+    {
+      "id": "C9",
+      "capability": "window_z_order",
+      "status": "available",
+      "verified": true,
+      "mechanism": "порядок CGWindowList (front-to-back) и kCGWindowLayer",
+      "note": null
+    },
+    {
+      "id": "C10",
+      "capability": "window_events",
+      "status": "available",
+      "verified": true,
+      "mechanism": "AXObserver (разрешение Accessibility есть)",
+      "note": null
+    },
+    {
+      "id": "C11",
+      "capability": "active_application",
+      "status": "unknown",
+      "verified": true,
+      "mechanism": "kCGWindowOwnerPID",
+      "note": "нет переднего окна во время пробы"
+    },
+    {
+      "id": "C12",
+      "capability": "window_titles",
+      "status": "available",
+      "verified": true,
+      "mechanism": "kCGWindowName (разрешение Screen Recording есть)",
+      "note": "читается только при capability Window, ТЗ §14"
+    },
+    {
+      "id": "C13",
+      "capability": "taskbar_geometry",
+      "status": "available",
+      "verified": false,
+      "mechanism": "NSScreen.visibleFrame (меню-бар и Dock)",
+      "note": "Dock с автоскрытием — ⚠️"
+    },
+    {
+      "id": "C14",
+      "capability": "fullscreen_detection",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "отдельный Space + геометрия переднего окна",
+      "note": null
+    },
+    {
+      "id": "C15",
+      "capability": "capture_exclusion",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "NSWindow.sharingType = .none",
+      "note": "ScreenCaptureKit в новых версиях может это игнорировать"
+    },
+    {
+      "id": "C16",
+      "capability": "idle_time",
+      "status": "available",
+      "verified": true,
+      "mechanism": "CGEventSourceSecondsSinceLastEventType",
+      "note": null
+    },
+    {
+      "id": "C17",
+      "capability": "session_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "NSWorkspace: willSleep / didWake, screensDidSleep",
+      "note": null
+    },
+    {
+      "id": "C18",
+      "capability": "secret_store",
+      "status": "available",
+      "verified": true,
+      "mechanism": "Keychain (SecKeychainCopyDefault)",
+      "note": null
+    },
+    {
+      "id": "C19",
+      "capability": "autostart",
+      "status": "available",
+      "verified": false,
+      "mechanism": "SMAppService (macOS 13+)",
+      "note": null
+    },
+    {
+      "id": "C20",
+      "capability": "all_virtual_desktops",
+      "status": "available",
+      "verified": false,
+      "mechanism": "collectionBehavior = [.canJoinAllSpaces, .stationary]",
+      "note": null
+    }
+  ]
+}
