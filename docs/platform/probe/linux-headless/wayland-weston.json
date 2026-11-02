@@ -1,0 +1,198 @@
+{
+  "environment": {
+    "os": "Linux",
+    "os_version": "Ubuntu 24.04.5 LTS",
+    "architecture": "X64",
+    "session": "wayland",
+    "compositor": "weston"
+  },
+  "level": "L1",
+  "missing_for_next_level": [
+    "C3"
+  ],
+  "monitors": [],
+  "visible_window_count": 0,
+  "protocols": [
+    "weston_capture_v1",
+    "weston_desktop_shell",
+    "wl_compositor",
+    "wl_data_device_manager",
+    "wl_output",
+    "wl_shm",
+    "wl_subcompositor",
+    "wp_presentation",
+    "wp_single_pixel_buffer_manager_v1",
+    "wp_tearing_control_manager_v1",
+    "wp_viewporter",
+    "xdg_wm_base",
+    "zwp_input_panel_v1",
+    "zwp_input_timestamps_manager_v1",
+    "zwp_linux_explicit_synchronization_v1",
+    "zwp_pointer_constraints_v1",
+    "zwp_relative_pointer_manager_v1",
+    "zwp_text_input_manager_v1",
+    "zxdg_output_manager_v1"
+  ],
+  "checks": [
+    {
+      "id": "C1",
+      "capability": "transparent_overlay",
+      "status": "available",
+      "verified": true,
+      "mechanism": "wl_compositor + ARGB-буфер",
+      "note": null
+    },
+    {
+      "id": "C2",
+      "capability": "click_through",
+      "status": "available",
+      "verified": true,
+      "mechanism": "wl_surface.set_input_region — только хитбокс голубя",
+      "note": null
+    },
+    {
+      "id": "C3",
+      "capability": "always_on_top",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "zwlr_layer_shell_v1",
+      "note": "композитор не поддерживает layer-shell (так у GNOME)"
+    },
+    {
+      "id": "C4",
+      "capability": "no_focus_no_taskbar",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "xdg_toplevel",
+      "note": "обычное окно видно в переключателе окон"
+    },
+    {
+      "id": "C5",
+      "capability": "monitor_enumeration",
+      "status": "available",
+      "verified": true,
+      "mechanism": "wl_output + zxdg_output_manager_v1",
+      "note": "мониторов: 1"
+    },
+    {
+      "id": "C6",
+      "capability": "monitor_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "wl_registry: появление и удаление wl_output",
+      "note": null
+    },
+    {
+      "id": "C7",
+      "capability": "global_cursor",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "глобального курсора в протоколе нет: позиция известна только над голубем"
+    },
+    {
+      "id": "C8",
+      "capability": "window_geometry",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "протокол не отдаёт геометрию чужих окон; на KDE возможен скрипт KWin (вне MVP)"
+    },
+    {
+      "id": "C9",
+      "capability": "window_z_order",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "протокол не отдаёт z-order"
+    },
+    {
+      "id": "C10",
+      "capability": "window_events",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "без геометрии окон событий перемещения нет"
+    },
+    {
+      "id": "C11",
+      "capability": "active_application",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "foreign-toplevel",
+      "note": "композитор не отдаёт список окон"
+    },
+    {
+      "id": "C12",
+      "capability": "window_titles",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "foreign-toplevel",
+      "note": null
+    },
+    {
+      "id": "C13",
+      "capability": "taskbar_geometry",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": null
+    },
+    {
+      "id": "C14",
+      "capability": "fullscreen_detection",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "foreign-toplevel",
+      "note": null
+    },
+    {
+      "id": "C15",
+      "capability": "capture_exclusion",
+      "status": "unavailable",
+      "verified": false,
+      "mechanism": "—",
+      "note": "механизма нет"
+    },
+    {
+      "id": "C16",
+      "capability": "idle_time",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "D-Bus композитора",
+      "note": "протокола idle-notify нет"
+    },
+    {
+      "id": "C17",
+      "capability": "session_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "logind (D-Bus): PrepareForSleep, Lock/Unlock",
+      "note": null
+    },
+    {
+      "id": "C18",
+      "capability": "secret_store",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "Secret Service (libsecret)",
+      "note": "нет D-Bus-сессии: fallback — зашифрованный файл с предупреждением"
+    },
+    {
+      "id": "C19",
+      "capability": "autostart",
+      "status": "available",
+      "verified": false,
+      "mechanism": "XDG autostart (~/.config/autostart/*.desktop)",
+      "note": null
+    },
+    {
+      "id": "C20",
+      "capability": "all_virtual_desktops",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "обычное окно живёт на одном рабочем столе"
+    }
+  ]
+}

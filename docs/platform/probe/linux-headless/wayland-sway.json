@@ -1,0 +1,225 @@
+{
+  "environment": {
+    "os": "Linux",
+    "os_version": "Ubuntu 24.04.5 LTS",
+    "architecture": "X64",
+    "session": "wayland",
+    "compositor": "sway"
+  },
+  "level": "L2",
+  "missing_for_next_level": [
+    "C7",
+    "C8",
+    "C9"
+  ],
+  "monitors": [],
+  "visible_window_count": 0,
+  "protocols": [
+    "ext_idle_notifier_v1",
+    "ext_session_lock_manager_v1",
+    "org_kde_kwin_server_decoration_manager",
+    "wl_compositor",
+    "wl_data_device_manager",
+    "wl_output",
+    "wl_seat",
+    "wl_shm",
+    "wl_subcompositor",
+    "wp_content_type_manager_v1",
+    "wp_cursor_shape_manager_v1",
+    "wp_fractional_scale_manager_v1",
+    "wp_presentation",
+    "wp_security_context_manager_v1",
+    "wp_single_pixel_buffer_manager_v1",
+    "wp_viewporter",
+    "xdg_activation_v1",
+    "xdg_wm_base",
+    "zwlr_data_control_manager_v1",
+    "zwlr_export_dmabuf_manager_v1",
+    "zwlr_foreign_toplevel_manager_v1",
+    "zwlr_gamma_control_manager_v1",
+    "zwlr_input_inhibit_manager_v1",
+    "zwlr_layer_shell_v1",
+    "zwlr_output_manager_v1",
+    "zwlr_output_power_manager_v1",
+    "zwlr_screencopy_manager_v1",
+    "zwlr_virtual_pointer_manager_v1",
+    "zwp_idle_inhibit_manager_v1",
+    "zwp_input_method_manager_v2",
+    "zwp_keyboard_shortcuts_inhibit_manager_v1",
+    "zwp_pointer_constraints_v1",
+    "zwp_pointer_gestures_v1",
+    "zwp_primary_selection_device_manager_v1",
+    "zwp_relative_pointer_manager_v1",
+    "zwp_tablet_manager_v2",
+    "zwp_text_input_manager_v3",
+    "zwp_virtual_keyboard_manager_v1",
+    "zxdg_decoration_manager_v1",
+    "zxdg_exporter_v1",
+    "zxdg_exporter_v2",
+    "zxdg_importer_v1",
+    "zxdg_importer_v2",
+    "zxdg_output_manager_v1"
+  ],
+  "checks": [
+    {
+      "id": "C1",
+      "capability": "transparent_overlay",
+      "status": "available",
+      "verified": true,
+      "mechanism": "wl_compositor + ARGB-буфер",
+      "note": null
+    },
+    {
+      "id": "C2",
+      "capability": "click_through",
+      "status": "available",
+      "verified": true,
+      "mechanism": "wl_surface.set_input_region — только хитбокс голубя",
+      "note": null
+    },
+    {
+      "id": "C3",
+      "capability": "always_on_top",
+      "status": "available",
+      "verified": true,
+      "mechanism": "zwlr_layer_shell_v1, слой overlay",
+      "note": null
+    },
+    {
+      "id": "C4",
+      "capability": "no_focus_no_taskbar",
+      "status": "available",
+      "verified": true,
+      "mechanism": "layer-shell surface, keyboard_interactivity = none",
+      "note": null
+    },
+    {
+      "id": "C5",
+      "capability": "monitor_enumeration",
+      "status": "available",
+      "verified": true,
+      "mechanism": "wl_output + zxdg_output_manager_v1",
+      "note": "мониторов: 1"
+    },
+    {
+      "id": "C6",
+      "capability": "monitor_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "wl_registry: появление и удаление wl_output",
+      "note": null
+    },
+    {
+      "id": "C7",
+      "capability": "global_cursor",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "глобального курсора в протоколе нет: позиция известна только над голубем"
+    },
+    {
+      "id": "C8",
+      "capability": "window_geometry",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "протокол не отдаёт геометрию чужих окон; на KDE возможен скрипт KWin (вне MVP)"
+    },
+    {
+      "id": "C9",
+      "capability": "window_z_order",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "протокол не отдаёт z-order"
+    },
+    {
+      "id": "C10",
+      "capability": "window_events",
+      "status": "unavailable",
+      "verified": true,
+      "mechanism": "—",
+      "note": "без геометрии окон событий перемещения нет"
+    },
+    {
+      "id": "C11",
+      "capability": "active_application",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "zwlr_foreign_toplevel_manager_v1",
+      "note": "app_id и состояние activated, без геометрии"
+    },
+    {
+      "id": "C12",
+      "capability": "window_titles",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "zwlr_foreign_toplevel_manager_v1",
+      "note": "читается только при capability Window, ТЗ §14"
+    },
+    {
+      "id": "C13",
+      "capability": "taskbar_geometry",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "layer-shell exclusive zone",
+      "note": "панели видны только через уменьшение рабочей области"
+    },
+    {
+      "id": "C14",
+      "capability": "fullscreen_detection",
+      "status": "limited",
+      "verified": true,
+      "mechanism": "zwlr_foreign_toplevel_manager_v1",
+      "note": "состояние fullscreen, без геометрии"
+    },
+    {
+      "id": "C15",
+      "capability": "capture_exclusion",
+      "status": "unavailable",
+      "verified": false,
+      "mechanism": "—",
+      "note": "механизма нет"
+    },
+    {
+      "id": "C16",
+      "capability": "idle_time",
+      "status": "available",
+      "verified": true,
+      "mechanism": "ext_idle_notifier_v1",
+      "note": null
+    },
+    {
+      "id": "C17",
+      "capability": "session_events",
+      "status": "available",
+      "verified": false,
+      "mechanism": "logind (D-Bus): PrepareForSleep, Lock/Unlock",
+      "note": null
+    },
+    {
+      "id": "C18",
+      "capability": "secret_store",
+      "status": "limited",
+      "verified": false,
+      "mechanism": "Secret Service (libsecret)",
+      "note": "нет D-Bus-сессии: fallback — зашифрованный файл с предупреждением"
+    },
+    {
+      "id": "C19",
+      "capability": "autostart",
+      "status": "available",
+      "verified": false,
+      "mechanism": "XDG autostart (~/.config/autostart/*.desktop)",
+      "note": null
+    },
+    {
+      "id": "C20",
+      "capability": "all_virtual_desktops",
+      "status": "available",
+      "verified": true,
+      "mechanism": "layer-shell surface не привязана к рабочему столу",
+      "note": null
+    }
+  ]
+}
