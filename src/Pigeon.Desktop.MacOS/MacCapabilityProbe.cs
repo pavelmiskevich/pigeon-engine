@@ -25,7 +25,7 @@ public sealed class MacCapabilityProbe : ICapabilityProbe
     public CapabilityProbeResult Probe()
     {
         var monitors = Safe(Monitors, []);
-        var (windowCount, frontPid) = Safe(Windows, (0, 0));
+        var (windowListOk, windowCount, frontPid) = Safe(Windows, (false, 0, 0));
 
         var checks = new List<CapabilityCheck>
         {
@@ -42,10 +42,10 @@ public sealed class MacCapabilityProbe : ICapabilityProbe
             Safe(() => Cursor(), false)
                 ? new(Capability.GlobalCursor, CapabilityStatus.Available, "CGEventGetLocation (без разрешений)")
                 : new(Capability.GlobalCursor, CapabilityStatus.Unavailable, "CGEventGetLocation"),
-            windowCount > 0
-                ? new(Capability.WindowGeometry, CapabilityStatus.Available, "CGWindowListCopyWindowInfo: kCGWindowBounds (без разрешений)")
-                : new(Capability.WindowGeometry, CapabilityStatus.Unavailable, "CGWindowListCopyWindowInfo", "окна не найдены"),
-            new(Capability.WindowZOrder, windowCount > 0 ? CapabilityStatus.Available : CapabilityStatus.Unavailable,
+            windowListOk
+                ? new(Capability.WindowGeometry, CapabilityStatus.Available, "CGWindowListCopyWindowInfo: kCGWindowBounds (без разрешений)", $"обычных окон: {windowCount}")
+                : new(Capability.WindowGeometry, CapabilityStatus.Unavailable, "CGWindowListCopyWindowInfo", "список окон не получен"),
+            new(Capability.WindowZOrder, windowListOk ? CapabilityStatus.Available : CapabilityStatus.Unavailable,
                 "порядок CGWindowList (front-to-back) и kCGWindowLayer"),
             Safe(AXIsProcessTrusted, false)
                 ? new(Capability.WindowEvents, CapabilityStatus.Available, "AXObserver (разрешение Accessibility есть)")
@@ -135,12 +135,12 @@ public sealed class MacCapabilityProbe : ICapabilityProbe
     }
 
     /// <summary>Число обычных окон (слой 0) и PID владельца самого верхнего. Без имён и заголовков.</summary>
-    private static (int Count, int FrontPid) Windows()
+    private static (bool Ok, int Count, int FrontPid) Windows()
     {
         var list = CGWindowListCopyWindowInfo(OnScreenOnly | ExcludeDesktopElements, 0);
         if (list == IntPtr.Zero)
         {
-            return (0, 0);
+            return (false, 0, 0);
         }
 
         try
@@ -166,7 +166,7 @@ public sealed class MacCapabilityProbe : ICapabilityProbe
                 }
             }
 
-            return (count, frontPid);
+            return (true, count, frontPid);
         }
         finally
         {
