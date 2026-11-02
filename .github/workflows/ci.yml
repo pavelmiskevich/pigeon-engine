@@ -104,3 +104,30 @@ jobs:
 
       - name: Report publish size
         run: node tools/wasm-check/publish-size.mjs artifacts/wasm-harness/wwwroot >> "$GITHUB_STEP_SUMMARY"
+
+  # Проба на Windows Server 2022 — та же кодовая база, что Windows 10 21H2 (сборка 20348):
+  # проверка API Windows 10 без отдельной машины (S0.3).
+  probe-windows-10-base:
+    name: probe-windows-10-base
+    runs-on: windows-2022
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Capability probe
+        shell: bash
+        run: |
+          dotnet run --project tools/Pigeon.Probe -c Release -- --json > probe-windows-10-base.json
+          dotnet run --project tools/Pigeon.Probe -c Release --no-build >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-windows-10-base
+          path: probe-windows-10-base.json
+          retention-days: 30

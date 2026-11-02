@@ -23,7 +23,7 @@ public sealed class WindowsCapabilityProbe : ICapabilityProbe
         {
             var checks = new List<CapabilityCheck>();
             var monitors = EnumerateMonitors();
-            var windowCount = CountVisibleWindows();
+            var (windowsOk, windowCount) = CountVisibleWindows();
 
             ProbeOverlayWindow(checks);
 
@@ -35,10 +35,10 @@ public sealed class WindowsCapabilityProbe : ICapabilityProbe
             checks.Add(GetCursorPos(out _)
                 ? new(Capability.GlobalCursor, CapabilityStatus.Available, "GetCursorPos")
                 : new(Capability.GlobalCursor, CapabilityStatus.Unavailable, "GetCursorPos", "вызов не удался"));
-            checks.Add(windowCount > 0
-                ? new(Capability.WindowGeometry, CapabilityStatus.Available, "EnumWindows + DWMWA_EXTENDED_FRAME_BOUNDS, без cloaked")
-                : new(Capability.WindowGeometry, CapabilityStatus.Unavailable, "EnumWindows", "видимых окон не найдено"));
-            checks.Add(new(Capability.WindowZOrder, windowCount > 0 ? CapabilityStatus.Available : CapabilityStatus.Unavailable,
+            checks.Add(windowsOk
+                ? new(Capability.WindowGeometry, CapabilityStatus.Available, "EnumWindows + DWMWA_EXTENDED_FRAME_BOUNDS, без cloaked", $"видимых окон: {windowCount}")
+                : new(Capability.WindowGeometry, CapabilityStatus.Unavailable, "EnumWindows", "перечисление окон не удалось"));
+            checks.Add(new(Capability.WindowZOrder, windowsOk ? CapabilityStatus.Available : CapabilityStatus.Unavailable,
                 "порядок EnumWindows"));
             checks.Add(ProbeWinEventHook());
             checks.Add(ProbeActiveApplication());
@@ -140,10 +140,10 @@ public sealed class WindowsCapabilityProbe : ICapabilityProbe
     }
 
     /// <summary>Видимые, не свёрнутые и не cloaked окна с ненулевой рамкой. Без заголовков.</summary>
-    private static int CountVisibleWindows()
+    private static (bool Ok, int Count) CountVisibleWindows()
     {
         var count = 0;
-        EnumWindows((window, _) =>
+        var ok = EnumWindows((window, _) =>
         {
             if (IsWindowVisible(window) && !IsIconic(window)
                 && DwmGetWindowAttributeInt(window, DwmwaCloaked, out var cloaked, sizeof(int)) == 0 && cloaked == 0
@@ -155,7 +155,7 @@ public sealed class WindowsCapabilityProbe : ICapabilityProbe
 
             return true;
         }, IntPtr.Zero);
-        return count;
+        return (ok, count);
     }
 
     private static CapabilityCheck ProbeWinEventHook()
