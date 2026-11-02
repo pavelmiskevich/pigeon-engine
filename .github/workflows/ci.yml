@@ -47,6 +47,29 @@ jobs:
       - name: Test
         run: dotnet test --solution PigeonEngine.slnx -c Release --no-build
 
+      # Проба возможностей платформы (S0.3): отчёт не валит сборку, на раннере без экрана
+      # уровень будет низким. Отчёт без имени машины и пользователя.
+      - name: Capability probe
+        shell: bash
+        run: |
+          dotnet run --project tools/Pigeon.Probe -c Release --no-build -- --json > probe-${{ matrix.name }}.json || true
+          dotnet run --project tools/Pigeon.Probe -c Release --no-build >> "$GITHUB_STEP_SUMMARY" || true
+
+      # Самодостаточная сборка pigeon-probe для macOS: на macOS SDK подписывает её ad-hoc,
+      # без этого Apple Silicon бинарник не запустит.
+      - name: Publish probe for macOS
+        if: matrix.name == 'macos-arm64'
+        run: dotnet publish tools/Pigeon.Probe -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true -p:InvariantGlobalization=true -p:DebugType=none -o artifacts/probe/osx-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-${{ matrix.name }}
+          path: |
+            probe-${{ matrix.name }}.json
+            artifacts/probe/osx-arm64
+          if-no-files-found: ignore
+          retention-days: 30
+
   # Ядро в .NET WebAssembly: те же эталонные хеши, что в .NET-тестах, в headless Chrome
   # (MVP-0, S0.7; ADR-0014, ADR-0016).
   core-in-wasm:
