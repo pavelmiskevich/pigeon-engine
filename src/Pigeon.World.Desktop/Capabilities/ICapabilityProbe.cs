@@ -43,6 +43,9 @@ public sealed record CapabilityProbeResult(
 {
     public DesktopLevel Level => DesktopLevels.Compute(Checks);
 
+    /// <summary>Глобальные протоколы композитора Wayland, если проба их читала.</summary>
+    public IReadOnlyList<string> Protocols { get; init; } = [];
+
     public CapabilityCheck this[Capability capability] =>
         Checks.Single(c => c.Capability == capability);
 }

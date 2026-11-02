@@ -3,6 +3,7 @@
 //
 //   pigeon-probe            текстовый отчёт
 //   pigeon-probe --json     JSON (для заполнения матрицы и баг-репортов)
+//   pigeon-probe --x11      в Wayland-сессии проверить XWayland
 //
 // Отчёт не содержит заголовков окон, имён приложений, путей, имени машины и пользователя.
 
@@ -10,12 +11,18 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Pigeon.Desktop.Linux;
+using Pigeon.Desktop.MacOS;
 using Pigeon.Desktop.Windows;
 using Pigeon.World.Desktop.Capabilities;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-ICapabilityProbe? probe = OperatingSystem.IsWindows() ? new WindowsCapabilityProbe() : null;
+ICapabilityProbe? probe =
+    OperatingSystem.IsWindows() ? new WindowsCapabilityProbe()
+    : OperatingSystem.IsMacOS() ? new MacCapabilityProbe()
+    : OperatingSystem.IsLinux() ? new LinuxCapabilityProbe(forceX11: args.Contains("--x11"))
+    : null;
 if (probe is null)
 {
     Console.Error.WriteLine($"pigeon-probe: проба для {Environment.OSVersion.Platform} ещё не реализована.");
@@ -40,6 +47,7 @@ if (args.Contains("--json"))
         MissingForNextLevel = DesktopLevels.MissingForNextLevel(result.Checks).Select(c => $"C{(int)c}"),
         result.Monitors,
         result.VisibleWindowCount,
+        result.Protocols,
         Checks = result.Checks.Select(c => new { c.Id, c.Capability, c.Status, c.Verified, c.Mechanism, c.Note }),
     }, options));
     return 0;
@@ -63,6 +71,10 @@ foreach (var m in result.Monitors)
 }
 
 Console.WriteLine($"Видимых окон: {result.VisibleWindowCount}");
+if (result.Protocols.Count > 0)
+{
+    Console.WriteLine($"Протоколы композитора: {string.Join(", ", result.Protocols)}");
+}
 Console.WriteLine();
 foreach (var c in result.Checks)
 {

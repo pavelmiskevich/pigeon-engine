@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- Обратные вызовы wl_registry — указатели на неуправляемые функции. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../Pigeon.Common/Pigeon.Common.csproj" />
     <ProjectReference Include="../Pigeon.Core/Pigeon.Core.csproj" />
