@@ -52,12 +52,13 @@ internal sealed class LayeredOverlay(MeasureSession measure)
         var clock = Stopwatch.StartNew();
         var last = clock.Elapsed;
         var lastScreens = last;
+        var nextFrame = last;
 
         while (true)
         {
             while (PeekMessageW(out var message, IntPtr.Zero, 0, 0, PmRemove))
             {
-                if (message.Message == WmQuit)
+                if (message.Id == WmQuit)
                 {
                     return 0;
                 }
@@ -90,7 +91,14 @@ internal sealed class LayeredOverlay(MeasureSession measure)
 
             if (model.Mode == PigeonMode.Moving)
             {
-                Win32.DwmFlush();
+                // Кадры по расписанию 60 Гц с привязкой к композиции: на экранах 120–144 Гц
+                // DwmFlush возвращается чаще, чем нужно.
+                nextFrame = FramePacer.Next(nextFrame, clock.Elapsed);
+                do
+                {
+                    Win32.DwmFlush();
+                }
+                while (clock.Elapsed < nextFrame - FramePacer.Tolerance);
             }
             else
             {
@@ -206,7 +214,7 @@ internal sealed class LayeredOverlay(MeasureSession measure)
     private struct Message
     {
         public IntPtr Window;
-        public uint Message;
+        public uint Id;
         public IntPtr WParam;
         public IntPtr LParam;
         public uint Time;

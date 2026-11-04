@@ -1,0 +1,38 @@
+{
+  "candidate": "win32-skia",
+  "os_version": "10.0.28000.0",
+  "processor_count": 8,
+  "time_to_first_frame_ms": 148,
+  "checks": {
+    "hit_on_pigeon_is_ours": true,
+    "hit_on_transparent_corner_passes_through": true,
+    "topmost": true,
+    "no_activate": true,
+    "tool_window_not_in_alt_tab": true,
+    "foreground_unchanged": true,
+    "window_px": 168,
+    "dpi": 168,
+    "monitors": 1
+  },
+  "idle": {
+    "cpu_percent_of_one_core": 3.23,
+    "working_set_mb_avg": 30.8,
+    "working_set_mb_max": 31,
+    "private_mb": 10,
+    "fps": 8.9,
+    "frame_ms_p50": 112.14,
+    "frame_ms_p99": 130.96,
+    "frames_over_25ms": 0
+  },
+  "moving": {
+    "cpu_percent_of_one_core": 12.41,
+    "working_set_mb_avg": 32.4,
+    "working_set_mb_max": 33.4,
+    "private_mb": 11.5,
+    "fps": 59.4,
+    "frame_ms_p50": 14.08,
+    "frame_ms_p99": 38.08,
+    "frames_over_25ms": 46
+  },
+  "monitor_transitions": 0
+}
