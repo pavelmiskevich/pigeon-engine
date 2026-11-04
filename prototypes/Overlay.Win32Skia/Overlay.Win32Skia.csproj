@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Кандидат B (S0.2): тонкое Win32-окно с попиксельной альфой + отрисовка SkiaSharp. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Overlay.Shared/Overlay.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

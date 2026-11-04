@@ -1,4 +1,9 @@
 <Solution>
+  <Folder Name="/prototypes/">
+    <Project Path="prototypes/Overlay.Avalonia/Overlay.Avalonia.csproj" />
+    <Project Path="prototypes/Overlay.Shared/Overlay.Shared.csproj" />
+    <Project Path="prototypes/Overlay.Win32Skia/Overlay.Win32Skia.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Pigeon.AI/Pigeon.AI.csproj" />
     <Project Path="src/Pigeon.Common/Pigeon.Common.csproj" />
