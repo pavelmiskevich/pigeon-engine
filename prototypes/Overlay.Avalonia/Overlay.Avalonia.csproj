@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Кандидат A (S0.2): Avalonia 12 + нативный interop для стилей окна и click-through. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Overlay.Shared/Overlay.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
