@@ -30,5 +30,5 @@
 | [0018](0018-domain-vs-integration-events.md) | Доменные и интеграционные события | Proposed |
 | [0019](0019-no-postgresql-on-desktop.md) | Нет PostgreSQL на Desktop | Proposed |
 | [0020](0020-privacy-scope-v1.md) | Privacy scope v1 | Proposed |
-| [0021](0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Pending |
+| [0021](0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Proposed |
 | [0022](0022-migratory-pigeon.md) | Перелётный голубь: всегда в одном мире | Proposed |

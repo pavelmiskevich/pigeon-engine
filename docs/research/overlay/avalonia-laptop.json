@@ -1,0 +1,38 @@
+{
+  "candidate": "avalonia",
+  "os_version": "10.0.28000.0",
+  "processor_count": 8,
+  "time_to_first_frame_ms": 1072,
+  "checks": {
+    "hit_on_pigeon_is_ours": true,
+    "hit_on_transparent_corner_passes_through": true,
+    "topmost": true,
+    "no_activate": true,
+    "tool_window_not_in_alt_tab": true,
+    "foreground_unchanged": true,
+    "window_px": 168,
+    "dpi": 168,
+    "monitors": 1
+  },
+  "idle": {
+    "cpu_percent_of_one_core": 16.9,
+    "working_set_mb_avg": 139,
+    "working_set_mb_max": 144.4,
+    "private_mb": 77.6,
+    "fps": 9,
+    "frame_ms_p50": 110.35,
+    "frame_ms_p99": 128.06,
+    "frames_over_25ms": 0
+  },
+  "moving": {
+    "cpu_percent_of_one_core": 38.52,
+    "working_set_mb_avg": 135.7,
+    "working_set_mb_max": 136.9,
+    "private_mb": 78.9,
+    "fps": 58.8,
+    "frame_ms_p50": 13.07,
+    "frame_ms_p99": 44.32,
+    "frames_over_25ms": 263
+  },
+  "monitor_transitions": 0
+}

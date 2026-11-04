@@ -51,8 +51,10 @@ internal sealed class OverlayWindow : Window
     private readonly DispatcherTimer _clickThroughTimer;
     private TimeSpan _last;
     private TimeSpan _lastScreens;
+    private TimeSpan _nextFrame;
     private IntPtr _handle;
     private bool _transparent;
+    private bool _animating;
 
     public OverlayWindow(MeasureSession measure)
     {
@@ -60,7 +62,7 @@ internal sealed class OverlayWindow : Window
         _model = new PigeonModel(Win32.Screens());
         _view = new PigeonView(_model);
 
-        SystemDecorations = SystemDecorations.None;
+        WindowDecorations = WindowDecorations.None;
         Background = Brushes.Transparent;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Topmost = true;
@@ -90,17 +92,22 @@ internal sealed class OverlayWindow : Window
         _handle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         Win32.SetExStyle(_handle, Win32.ExStyle(_handle) | Win32.WsExNoActivate | Win32.WsExToolWindow | Win32.WsExTopmost);
         _clickThroughTimer.Start();
+        _animating = true;
         RequestAnimationFrame(OnAnimationFrame);
     }
 
     private void OnAnimationFrame(TimeSpan _)
     {
-        if (_model.Mode == PigeonMode.Moving)
+        // Кадр вызывается с частотой экрана (120–144 Гц на ноутбуках); сценарий — 60 Гц.
+        if (_model.Mode == PigeonMode.Moving && _clock.Elapsed >= _nextFrame - FramePacer.Tolerance)
         {
+            _nextFrame = FramePacer.Next(_nextFrame, _clock.Elapsed);
             Tick();
         }
 
-        if (!_measure.Finished)
+        // В покое цикл кадров останавливается, работает таймер на 10 кадров в секунду.
+        _animating = _model.Mode == PigeonMode.Moving && !_measure.Finished;
+        if (_animating)
         {
             RequestAnimationFrame(OnAnimationFrame);
         }
@@ -127,6 +134,12 @@ internal sealed class OverlayWindow : Window
         else if (_model.Mode == PigeonMode.Moving && _idleTimer.IsEnabled)
         {
             _idleTimer.Stop();
+        }
+
+        if (_model.Mode == PigeonMode.Moving && !_animating && !_measure.Finished)
+        {
+            _animating = true;
+            RequestAnimationFrame(OnAnimationFrame);
         }
 
         _model.Update((now - _last).TotalSeconds);

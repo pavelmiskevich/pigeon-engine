@@ -63,6 +63,10 @@
 
 **Готово, когда:** принят ADR-0021 «Стек отрисовки Desktop» с таблицей измерений.
 
+**Ход (2026-11-04):** прототипы A (Avalonia 12) и B (Win32 + SkiaSharp) в `prototypes/`, замеры —
+[docs/research/desktop-overlay.md](../research/desktop-overlay.md). ADR-0021 предлагает B: только он
+укладывается в бюджеты ТЗ §37. Осталось: два монитора с разным масштабом, подтверждение ADR.
+
 ### S0.3 — Проба Desktop World и `pigeon-probe` · переносится (утилита)
 
 - Реализовать `ICapabilityProbe` и утилиту `pigeon-probe` (см. матрицу, §5).
