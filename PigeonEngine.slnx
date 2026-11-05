@@ -32,5 +32,6 @@
   <Folder Name="/tools/">
     <Project Path="tools/Pigeon.JevProbe/Pigeon.JevProbe.csproj" />
     <Project Path="tools/Pigeon.Probe/Pigeon.Probe.csproj" />
+    <Project Path="tools/Pigeon.SpriteBake/Pigeon.SpriteBake.csproj" />
   </Folder>
 </Solution>

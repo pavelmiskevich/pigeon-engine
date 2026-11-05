@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Запекание атласа анимаций голубя (MVP-0, S0.8; ADR-0023). Процедурный рисунок — временный
+    набор клипов для MVP-1; художник позже заменит его своими кадрами в том же формате.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+</Project>
