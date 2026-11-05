@@ -32,4 +32,4 @@
 | [0020](0020-privacy-scope-v1.md) | Privacy scope v1 | Proposed |
 | [0021](0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Accepted |
 | [0022](0022-migratory-pigeon.md) | Перелётный голубь: всегда в одном мире | Proposed |
-| [0023](0023-animation-format.md) | Формат анимации Desktop | Proposed |
+| [0023](0023-animation-format.md) | Формат анимации Desktop | Accepted |
