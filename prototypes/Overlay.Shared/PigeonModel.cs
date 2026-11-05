@@ -33,7 +33,6 @@ public sealed class PigeonModel
     /// <summary>Логический размер окна голубя при масштабе 1.0.</summary>
     public const int LogicalSize = 96;
 
-    private const double WalkSpeed = 70;
     private const double FlightDuration = 1.6;
     private const double WalkDuration = 6.0;
 
@@ -55,6 +54,9 @@ public sealed class PigeonModel
     }
 
     public PigeonMode Mode { get; set; } = PigeonMode.Moving;
+
+    /// <summary>Скорость ходьбы, логические пиксели в секунду.</summary>
+    public double WalkSpeed { get; set; } = 70;
 
     public double X { get; private set; }
 
