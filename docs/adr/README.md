@@ -33,3 +33,4 @@
 | [0021](0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Accepted |
 | [0022](0022-migratory-pigeon.md) | Перелётный голубь: всегда в одном мире | Proposed |
 | [0023](0023-animation-format.md) | Формат анимации Desktop | Accepted |
+| [0024](0024-distribution.md) | Дистрибуция и обновления | Proposed |
