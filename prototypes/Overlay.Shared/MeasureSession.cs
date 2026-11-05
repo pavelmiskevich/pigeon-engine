@@ -46,6 +46,12 @@ public sealed class MeasureSession
     /// </summary>
     public Action<int, int>? SimulateCursor { get; set; }
 
+    /// <summary>Точка на теле голубя в пикселях окна; по умолчанию — центр тела примитивного рисунка.</summary>
+    public Func<(int X, int Y)>? BodyPoint { get; set; }
+
+    /// <summary>Ширина окна в логических пикселях (при 96 DPI).</summary>
+    public double LogicalWidth { get; set; } = PigeonModel.LogicalSize;
+
     public bool Finished { get; private set; }
 
     /// <summary>Режим, которого требует текущая фаза замера.</summary>
@@ -115,7 +121,7 @@ public sealed class MeasureSession
         var width = rect.Right - rect.Left;
         var dpi = Win32.GetDpiForWindow(window);
         _sizesByDpi.Add($"{dpi} dpi: {width} px");
-        var expected = (int)Math.Round(PigeonModel.LogicalSize * dpi / 96.0);
+        var expected = (int)Math.Round(LogicalWidth * dpi / 96.0);
         if (Math.Abs(width - expected) > 2 && !model.Flying)
         {
             _sizeMismatches.Add($"{dpi} dpi: {width} px, ожидалось {expected}");
@@ -166,7 +172,8 @@ public sealed class MeasureSession
             return Win32.RootWindowAt(x, y);
         }
 
-        var body = HitAt(rect.Left + (int)(bx * scale), rect.Top + (int)(by * scale));
+        var (px, py) = BodyPoint?.Invoke() ?? ((int)(bx * scale), (int)(by * scale));
+        var body = HitAt(rect.Left + px, rect.Top + py);
         var corner = HitAt(rect.Left + 2, rect.Top + 2);
         var style = Win32.ExStyle(window);
 
