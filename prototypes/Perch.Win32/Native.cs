@@ -41,6 +41,7 @@ internal static class Native
     public const long WsExTopmost = 0x8;
     public const long WsExNoActivate = 0x8000000;
     public static readonly IntPtr HwndTop = IntPtr.Zero;
+    public static readonly IntPtr IdcArrow = 32512;
     public static readonly IntPtr HwndTopmost = -1;
 
     public delegate IntPtr WndProc(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
@@ -222,6 +223,9 @@ internal static class Native
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr GetModuleHandleW(string? name);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr LoadCursorW(IntPtr instance, IntPtr name);
 
     [DllImport("gdi32.dll")]
     public static extern IntPtr CreateCompatibleDC(IntPtr dc);

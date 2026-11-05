@@ -33,6 +33,7 @@ internal sealed class SpriteWindow
             Size = (uint)Marshal.SizeOf<WindowClass>(),
             WndProc = Marshal.GetFunctionPointerForDelegate(s_wndProc),
             Instance = instance,
+            Cursor = LoadCursorW(IntPtr.Zero, IdcArrow),
             ClassName = "PigeonPerch",
         };
         RegisterClassExW(ref windowClass);

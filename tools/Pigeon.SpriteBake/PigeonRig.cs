@@ -237,7 +237,13 @@ internal static class PigeonRig
 
     private static void DrawShadow(SKCanvas canvas, Pose pose)
     {
-        var lift = pose.WingAngle is null ? 0 : 1;
+        // Тень лежит на земле под голубем; в полёте земля далеко, тени в кадре нет.
+        if (pose.WingAngle is not null)
+        {
+            return;
+        }
+
+        var lift = 0;
         using var paint = new SKPaint
         {
             IsAntialias = true,
