@@ -23,6 +23,8 @@ public sealed class MeasureSession
     private readonly Dictionary<string, object> _results = [];
     private readonly List<double> _frameIntervals = [];
     private readonly List<long> _workingSet = [];
+    private readonly SortedSet<string> _sizesByDpi = new(StringComparer.Ordinal);
+    private readonly SortedSet<string> _sizeMismatches = new(StringComparer.Ordinal);
     private TimeSpan _phaseCpuStart;
     private TimeSpan _phaseWallStart;
     private TimeSpan _lastFrame = TimeSpan.MinValue;
@@ -70,6 +72,7 @@ public sealed class MeasureSession
         }
 
         _lastFrame = now;
+        TrackSize(window, model);
         if (now - _lastSample >= TimeSpan.FromSeconds(1))
         {
             _lastSample = now;
@@ -90,9 +93,32 @@ public sealed class MeasureSession
             case "moving" when now >= Warmup + PhaseLength + PhaseLength:
                 EndPhase("moving", now);
                 _results["monitor_transitions"] = model.MonitorTransitions;
+                _results["window_px_by_dpi"] = _sizesByDpi.ToArray();
+                _results["window_size_mismatches"] = _sizeMismatches.ToArray();
                 Write();
                 Finished = true;
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Размер окна должен соответствовать DPI монитора, на котором оно сейчас: 96 логических
+    /// пикселей × масштаб. Расхождение — скачок размера при переходе между мониторами.
+    /// </summary>
+    private void TrackSize(IntPtr window, PigeonModel model)
+    {
+        if (!Win32.GetWindowRect(window, out var rect))
+        {
+            return;
+        }
+
+        var width = rect.Right - rect.Left;
+        var dpi = Win32.GetDpiForWindow(window);
+        _sizesByDpi.Add($"{dpi} dpi: {width} px");
+        var expected = (int)Math.Round(PigeonModel.LogicalSize * dpi / 96.0);
+        if (Math.Abs(width - expected) > 2 && !model.Flying)
+        {
+            _sizeMismatches.Add($"{dpi} dpi: {width} px, ожидалось {expected}");
         }
     }
 
