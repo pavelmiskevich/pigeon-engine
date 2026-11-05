@@ -37,6 +37,7 @@ internal sealed class LayeredOverlay(MeasureSession measure, string? spriteDir)
     private const int SwShowNoActivate = 4;
     private const uint PmRemove = 1;
     private const uint UlwAlpha = 2;
+    private static readonly IntPtr IdcArrow = 32512;
 
     private static WndProc? s_wndProc;
 
@@ -143,6 +144,7 @@ internal sealed class LayeredOverlay(MeasureSession measure, string? spriteDir)
             Size = (uint)Marshal.SizeOf<WindowClass>(),
             WndProc = Marshal.GetFunctionPointerForDelegate(s_wndProc),
             Instance = instance,
+            Cursor = LoadCursorW(IntPtr.Zero, IdcArrow),
             ClassName = "PigeonOverlay",
         };
         RegisterClassExW(ref windowClass);
@@ -389,6 +391,9 @@ internal sealed class LayeredOverlay(MeasureSession measure, string? spriteDir)
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr GetModuleHandleW(string? name);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr LoadCursorW(IntPtr instance, IntPtr name);
 
     [DllImport("gdi32.dll")]
     private static extern IntPtr CreateCompatibleDC(IntPtr dc);

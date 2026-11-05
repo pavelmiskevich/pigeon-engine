@@ -107,7 +107,7 @@ foreach (var scale in scales)
             ["pigeon"] = new JsonObject
             {
                 ["logicalFrame"] = new JsonObject { ["w"] = FrameWidth, ["h"] = FrameHeight },
-                ["anchor"] = new JsonObject { ["x"] = (118 - OffsetX) * scale, ["y"] = (PigeonRig.Ground - OffsetY) * scale },
+                ["anchor"] = new JsonObject { ["x"] = (118 + OffsetX) * scale, ["y"] = (PigeonRig.Ground + OffsetY) * scale },
                 ["stride"] = PigeonRig.Stride,
             },
         },
