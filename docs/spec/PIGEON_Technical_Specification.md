@@ -268,7 +268,7 @@ Common ← Core ← AI ← Simulation
 ### 4.2 Desktop
 
 - C#/.NET, платформенные адаптеры
-- прозрачный always-on-top оверлей; **стек отрисовки — тонкий нативный слой окна + SkiaSharp** (S0.2, ADR-0021 Proposed).
+- прозрачный always-on-top оверлей; **стек отрисовки — тонкий нативный слой окна + SkiaSharp** (S0.2, ADR-0021).
   Кандидаты: Avalonia 12 + нативный interop; тонкий нативный слой + SkiaSharp; SDL3/GLFW.
   Окно настроек может быть на Avalonia независимо от выбора для оверлея
 - SQLite (единственное локальное хранилище; PostgreSQL на Desktop — нет, ADR-0019 **[Proposed]**)
@@ -1516,7 +1516,7 @@ features.
 | [0018](../adr/0018-domain-vs-integration-events.md) | Доменные и интеграционные события раздельно | Proposed |
 | [0019](../adr/0019-no-postgresql-on-desktop.md) | Нет PostgreSQL на Desktop | Proposed |
 | [0020](../adr/0020-privacy-scope-v1.md) | Privacy scope v1 | Proposed |
-| [0021](../adr/0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Proposed (S0.2) |
+| [0021](../adr/0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Accepted |
 | [0022](../adr/0022-migratory-pigeon.md) | Перелётный голубь: всегда в одном мире | Proposed |
 
 ---
