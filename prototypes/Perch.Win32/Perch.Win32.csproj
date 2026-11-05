@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Прототип «голубь на окне» (MVP-0, S0.4): насест на кромке, следование за окном, окклюзия. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Overlay.Shared/Overlay.Shared.csproj" />
+    <ProjectReference Include="../../src/Pigeon.World.Desktop/Pigeon.World.Desktop.csproj" />
+  </ItemGroup>
+
+</Project>
