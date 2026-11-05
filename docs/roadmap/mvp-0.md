@@ -151,6 +151,10 @@ fly и sleep, прототип оверлея проигрывает их в б�
 
 **Готово, когда:** ADR по дистрибуции; известна стоимость сертификатов подписи.
 
+**Ход (2026-11-04):** ADR-0024 предлагает Velopack, Azure Artifact Signing или OV-сертификат для
+Windows, Apple Developer Program для macOS, AppImage для Linux; стоимость ~$220–400 в год. Ждёт
+решения владельца.
+
 ### S0.10 — Замер Jev · timebox 3 дня
 
 Jev (`typesafe/jev-1.13` через OpenRouter Decisions API, ТЗ §17) — облачная модель в статусе

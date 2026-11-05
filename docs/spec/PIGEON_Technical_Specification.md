@@ -291,7 +291,8 @@ Common ← Core ← AI ← Simulation
 
 ### 4.4 Дистрибуция и обновления · *нов. v1.1*
 
-- Установщик и автообновление, кандидат — Velopack (решение в MVP-0, S0.9).
+- Установщик и автообновление — Velopack на трёх ОС (ADR-0024 **[Proposed]**); подпись и её
+  стоимость — там же.
 - Windows: подпись кода (иначе SmartScreen). macOS: Developer ID, hardened runtime,
   нотаризация, `LSUIElement`. Linux: AppImage и/или .deb; Flatpak — после оценки ограничений
   песочницы.
@@ -1519,6 +1520,7 @@ features.
 | [0021](../adr/0021-desktop-rendering-stack.md) | Стек отрисовки Desktop | Accepted |
 | [0022](../adr/0022-migratory-pigeon.md) | Перелётный голубь: всегда в одном мире | Proposed |
 | [0023](../adr/0023-animation-format.md) | Формат анимации Desktop | Accepted |
+| [0024](../adr/0024-distribution.md) | Дистрибуция и обновления | Proposed |
 
 ---
 
