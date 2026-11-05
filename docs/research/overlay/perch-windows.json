@@ -1,0 +1,39 @@
+{
+  "os_version": "10.0.28000.0",
+  "follow_latency_ms": {
+    "moves": 218,
+    "matched": 217,
+    "p50": 6.829,
+    "p95": 11.271,
+    "p99": 12.058,
+    "max": 13.264
+  },
+  "flee_reaction_ms": {
+    "occluded": 111.6,
+    "minimized": 13.5,
+    "closed": 4.8
+  },
+  "window_snapshot_ms": {
+    "checks": 96,
+    "p50": 1.198,
+    "p99": 3.611,
+    "max": 3.611,
+    "visible_windows": 8
+  },
+  "occlusion_compute_ms": {
+    "p50": 0.136,
+    "p99": 1.244,
+    "max": 1.244
+  },
+  "log": [
+    "0.10s fly perch",
+    "9.19s flee occluded (poll)",
+    "9.19s fly flee",
+    "11.16s fly perch",
+    "14.08s flee minimized (minimize)",
+    "14.09s fly flee",
+    "16.86s fly perch",
+    "19.08s flee closed (foreground)",
+    "19.08s fly flee"
+  ]
+}

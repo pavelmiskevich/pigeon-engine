@@ -8,4 +8,5 @@
 | [research/browser-runtime.md](research/browser-runtime.md) | Исследование: как ядро попадает в браузер |
 | [research/jev-measurement.md](research/jev-measurement.md) | Замер Jev: задержка, стоимость, характерность выбора |
 | [research/desktop-overlay.md](research/desktop-overlay.md) | Оверлей Desktop: замеры кандидатов стека отрисовки |
+| [research/window-perch.md](research/window-perch.md) | Голубь на окне: насест, следование, окклюзия |
 | [adr/](adr/README.md) | Architecture Decision Records |

@@ -3,6 +3,7 @@
     <Project Path="prototypes/Overlay.Avalonia/Overlay.Avalonia.csproj" />
     <Project Path="prototypes/Overlay.Shared/Overlay.Shared.csproj" />
     <Project Path="prototypes/Overlay.Win32Skia/Overlay.Win32Skia.csproj" />
+    <Project Path="prototypes/Perch.Win32/Perch.Win32.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Pigeon.AI/Pigeon.AI.csproj" />
