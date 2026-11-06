@@ -47,7 +47,8 @@ M1.9 хранение (#33).
 ```
 dotnet test --solution PigeonEngine.slnx
 dotnet run --project tools/Pigeon.Probe                 # возможности платформы
-dotnet run --project tools/Pigeon.SpriteBake -c Release # атласы голубя в assets/sprites/pigeon-black
+dotnet run --project tools/Pigeon.SpriteBake -c Release # листы голубя в assets/sprites/pigeon-black
+dotnet run --project src/Pigeon.Desktop -c Release      # голубь в продукте (Windows)
 dotnet run --project prototypes/Overlay.Win32Skia -c Release -- --sprite assets/sprites/pigeon-black
 dotnet run --project prototypes/Perch.Win32 -c Release -- --sprite assets/sprites/pigeon-black
 ```

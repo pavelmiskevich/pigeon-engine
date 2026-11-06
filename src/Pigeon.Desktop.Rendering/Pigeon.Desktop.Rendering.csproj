@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Отрисовка голубя на Desktop (ADR-0021, ADR-0023): сцена, листы спрайтов, выбор кадра, тень, масштаб.
+    Общая для всех ОС — окна у каждой ОС свои и получают отсюда готовые пиксели.
+  -->
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pigeon.World.Desktop/Pigeon.World.Desktop.csproj" />
+  </ItemGroup>
+
+</Project>
