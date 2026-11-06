@@ -17,9 +17,9 @@ internal static class GoldenSimulation
 {
     public const ulong Seed = 0x5EED_0001UL;
 
-    /// <summary>Час жизни: голубь устаёт, отдыхает и выбирает цели в мире (M1.1, M1.2).</summary>
+    /// <summary>Час жизни: голубь устаёт, отдыхает, выбирает цели в мире и теряет опору (M1.1–M1.3).</summary>
     public const long Ticks = 36_000;
-    public const ulong ExpectedHash = 0xDC53_F69E_3BD9_9FCEUL;
+    public const ulong ExpectedHash = 0x4AF1_542C_DF92_E351UL;
 
     public static JournalEntry[] Journal() =>
     [
@@ -31,6 +31,8 @@ internal static class GoldenSimulation
         new(20_000, new AbsenceEnded(TimeSpan.FromHours(13))),
         new(24_000, new AffordancesObserved(World)),
         new(27_777, new UserPoked()),
+        new(30_000, new FootingLost(DisplacementReason.TerritoryGone)),
+        new(30_000, new AffordancesObserved(World[..2])),
     ];
 
     /// <summary>Мир эталона: точка интереса, насест, курсор и второй монитор.</summary>

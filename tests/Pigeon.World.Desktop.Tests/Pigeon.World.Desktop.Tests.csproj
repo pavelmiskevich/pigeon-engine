@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Pigeon.World.Desktop/Pigeon.World.Desktop.csproj" />
+    <ProjectReference Include="../../src/Pigeon.Simulation/Pigeon.Simulation.csproj" />
   </ItemGroup>
 
 </Project>

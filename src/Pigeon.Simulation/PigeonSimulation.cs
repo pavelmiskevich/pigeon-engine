@@ -40,6 +40,10 @@ public sealed class PigeonSimulation
     internal const double WokenValence = -0.15;
     internal const double WokenArousal = 0.25;
 
+    // Потеря опоры: испуг, у робкого — до полутора раз сильнее, у смелого — вдвое слабее.
+    internal const double StartleValence = -0.2;
+    internal const double StartleArousal = 0.35;
+
     private static readonly NeedModel NeedRules = NeedModel.Default;
     private static readonly MoodModel MoodRules = MoodModel.Default;
 
@@ -441,6 +445,16 @@ public sealed class PigeonSimulation
                 Pigeon.SetNeeds(NeedRules.CatchUpAbsence(Pigeon.Needs, Pigeon.Personality, absence.Duration));
                 var rested = MoodRules.CatchUpAbsence(Pigeon.Mood, Pigeon.Personality, seconds);
                 Pigeon.SetMood(MoodRules.WelcomeBack(rested, Pigeon.Personality, absence.Duration));
+                Force(DecisionTrigger.Interrupted);
+                break;
+            case FootingLost lost:
+                if (!Enum.IsDefined(lost.Reason))
+                {
+                    throw new ArgumentException($"Неизвестная причина потери опоры: {(int)lost.Reason}.", nameof(inputEvent));
+                }
+
+                var fright = 1.0 - 0.5 * Personality.Centered(Pigeon.Personality.Boldness);
+                Pigeon.SetMood(Pigeon.Mood.Nudge(StartleValence * fright, StartleArousal * fright));
                 Force(DecisionTrigger.Interrupted);
                 break;
             case AffordancesObserved observed:

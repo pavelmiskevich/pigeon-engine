@@ -125,10 +125,10 @@
     "relocate": {
       "targets": ["territoryZone"],
       "considerations": [
-        { "input": "need.boredom", "curve": "smoothstep", "from": 0.4, "to": 0.9, "min": 0.05, "max": 1.0 },
-        { "input": "target.attractiveness", "curve": "linear", "min": 0.3, "max": 1.0 },
-        { "input": "target.travel", "curve": "linear", "from": 1.0, "to": 0.0, "min": 0.2, "max": 1.0 },
-        { "input": "need.fatigue", "curve": "linear", "from": 0.9, "to": 0.3 }
+        { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.6, "min": 0.2, "max": 1.0 },
+        { "input": "target.attractiveness", "curve": "linear", "min": 0.4, "max": 1.0 },
+        { "input": "target.travel", "curve": "linear", "from": 1.0, "to": 0.0, "min": 0.5, "max": 1.0 },
+        { "input": "need.fatigue", "curve": "linear", "from": 0.9, "to": 0.4, "min": 0.2, "max": 1.0 }
       ],
       "traits": { "curiosity": 0.3, "energy": 0.3, "boldness": 0.2 },
       "durationSeconds": [20, 40],

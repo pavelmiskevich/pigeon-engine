@@ -21,6 +21,9 @@ internal static class Native
     public const uint EventObjectLocationChange = 0x800B;
     public const uint WinEventOutOfContext = 0x0000;
     public const uint AbmGetTaskbarPos = 0x00000005;
+    public const uint AbmGetState = 0x00000004;
+    public const uint AbsAutoHide = 0x0000001;
+    public const uint EddGetDeviceInterfaceName = 0x00000001;
     public const uint ProcessQueryLimitedInformation = 0x1000;
     public const int ErrorNotFound = 1168;
     public const uint CredTypeGeneric = 1;
@@ -51,6 +54,38 @@ internal static class Native
         public Rect Monitor;
         public Rect Work;
         public uint Flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct MonitorInfoEx
+    {
+        public int Size;
+        public Rect Monitor;
+        public Rect Work;
+        public uint Flags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string Device;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct DisplayDevice
+    {
+        public int Size;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string DeviceName;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string DeviceString;
+
+        public uint StateFlags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string DeviceId;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string DeviceKey;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -99,6 +134,21 @@ internal static class Native
     [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
+    [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetMonitorInfoEx(IntPtr monitor, ref MonitorInfoEx info);
+
+    [DllImport("user32.dll", EntryPoint = "EnumDisplayDevicesW", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumDisplayDevices(string? device, uint index, ref DisplayDevice displayDevice, uint flags);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassNameW", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr window, char[] className, int maxCount);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetWindowRect(IntPtr window, out Rect rect);
 
     [DllImport("shcore.dll")]
     public static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);

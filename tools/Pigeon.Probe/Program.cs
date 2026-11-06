@@ -4,6 +4,7 @@
 //   pigeon-probe            текстовый отчёт
 //   pigeon-probe --json     JSON (для заполнения матрицы и баг-репортов)
 //   pigeon-probe --x11      в Wayland-сессии проверить XWayland
+//   pigeon-probe --world    Desktop World L2: поверхности экрана и affordances (Windows)
 //
 // Отчёт не содержит заголовков окон, имён приложений, путей, имени машины и пользователя.
 
@@ -15,6 +16,7 @@ using Pigeon.Desktop.Linux;
 using Pigeon.Desktop.MacOS;
 using Pigeon.Desktop.Windows;
 using Pigeon.World.Desktop.Capabilities;
+using Pigeon.World.Desktop.Screen;
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -30,6 +32,46 @@ if (probe is null)
 }
 
 var result = probe.Probe();
+
+if (args.Contains("--world"))
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.Error.WriteLine("pigeon-probe --world: Desktop World пока есть только для Windows.");
+        return 2;
+    }
+
+    var world = new DesktopWorld(new WindowsDesktopEnvironment(), result.Checks);
+    world.Refresh();
+    Console.WriteLine($"Desktop World: {world.Level.Code()}, голубь на мониторе {world.PigeonMonitor}");
+    Console.WriteLine();
+    foreach (var m in world.Topology.Monitors)
+    {
+        Console.WriteLine($"Монитор {m.Key}: {m.Bounds}, рабочая область {m.WorkArea}, масштаб {m.Scale:0.##}{(m.IsPrimary ? ", основной" : "")}");
+    }
+
+    Console.WriteLine(world.Topology.TaskbarsKnown ? "" : "Панели задач не прочитаны.");
+    foreach (var t in world.Topology.Taskbars)
+    {
+        Console.WriteLine($"Панель задач на {t.Monitor}: {t.Bounds}, край {t.Edge}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Поверхности:");
+    foreach (var surface in world.Surfaces)
+    {
+        Console.WriteLine($"  {surface.Key,-28} {surface.Kind,-9} y = {surface.Y}, x = {surface.Left}..{surface.Right}, {surface.LogicalLength:0} лог. пикс.");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Affordances для голубя:");
+    foreach (var a in world.Current())
+    {
+        Console.WriteLine($"  {a.PlaceKey,-28} {a.Kind,-15} привлекательность {a.Attractiveness:0.##}, риск {a.Risk:0.##}, путь {a.TravelCost.TotalSeconds:0} с");
+    }
+
+    return 0;
+}
 
 if (args.Contains("--json"))
 {
