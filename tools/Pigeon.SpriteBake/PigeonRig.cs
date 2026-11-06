@@ -144,6 +144,109 @@ internal static class PigeonRig
         };
     }
 
+    public static Pose Sit(float p)
+    {
+        // Сидит, поджав лапы, но не спит: голова поднята, глаза открыты, иногда моргает.
+        var breath = MathF.Sin(2 * MathF.PI * p);
+        return new Pose
+        {
+            BodyY = 15,
+            HeadX = -3 + (0.8f * breath),
+            HeadY = 7 - (0.6f * breath),
+            Blink = p is > 0.6f and < 0.72f ? MathF.Sin(MathF.PI * (p - 0.6f) / 0.12f) : 0,
+            Puff = 0.02f + (0.008f * breath),
+            Tucked = true,
+        };
+    }
+
+    public static Pose Hop(float p)
+    {
+        // Подскок на месте: присел, оттолкнулся, лапы в воздухе, мягкое приземление.
+        float bodyY, lift = 0;
+        if (p < 0.25f)
+        {
+            bodyY = 4 * Ease(p / 0.25f);
+        }
+        else if (p < 0.75f)
+        {
+            var u = (p - 0.25f) / 0.5f;
+            lift = 18 * MathF.Sin(MathF.PI * u);
+            bodyY = 4 - (4 * MathF.Min(1, u * 4)) - lift;
+        }
+        else
+        {
+            bodyY = 4 * MathF.Sin(MathF.PI * (p - 0.75f) / 0.25f);
+        }
+
+        return new Pose
+        {
+            BodyY = bodyY,
+            Pitch = lift > 0 ? -3 : 2 * (bodyY / 4),
+            HeadY = bodyY * 0.3f,
+            Tail = lift > 0 ? -2 : 0,
+            Feet = [new(116, Ground - lift, 0), new(126, Ground - lift, 0)],
+        };
+    }
+
+    public static Pose TakeOff(float p)
+    {
+        // Присел, крылья вверх, первый удар вниз — и лапы уже поджаты.
+        if (p < 0.35f)
+        {
+            var u = Ease(p / 0.35f);
+            return new Pose
+            {
+                BodyY = 5 * u,
+                Pitch = 6 * u,
+                HeadY = 2 * u,
+                Tail = -2 * u,
+                WingAngle = Lerp(-20, 70, u),
+                Feet = Standing,
+            };
+        }
+
+        var v = Ease((p - 0.35f) / 0.65f);
+        return new Pose
+        {
+            BodyY = Lerp(5, -10, v),
+            Pitch = Lerp(6, -4, v),
+            HeadX = 3 * v,
+            HeadY = Lerp(2, -2, v),
+            Tail = -3,
+            WingAngle = Lerp(70, -60, v),
+            Tucked = v > 0.5f,
+            Feet = Standing,
+        };
+    }
+
+    public static Pose Land(float p)
+    {
+        // Тормозит раскрытыми крыльями, лапы тянутся к земле; коснулся — сложил крылья.
+        if (p < 0.6f)
+        {
+            var u = Ease(p / 0.6f);
+            return new Pose
+            {
+                BodyY = Lerp(-10, 0, u),
+                Pitch = Lerp(-12, -4, u),
+                HeadX = 2,
+                HeadY = -2,
+                Tail = -4,
+                WingAngle = Lerp(55, 40, u),
+                Feet = Standing,
+            };
+        }
+
+        var v = (p - 0.6f) / 0.4f;
+        return new Pose
+        {
+            BodyY = 3 * MathF.Sin(MathF.PI * v),
+            Pitch = 3 * MathF.Sin(MathF.PI * v),
+            HeadY = 1.5f * MathF.Sin(MathF.PI * v),
+            Feet = Standing,
+        };
+    }
+
     private static Foot[] Standing => [new(116, Ground, 0), new(126, Ground, 0)];
 
     private static Foot StepFoot(float phase, float baseX, float lift)

@@ -19,6 +19,9 @@ public enum DecisionTrigger
 
     /// <summary>Цель намерения пропала из мира.</summary>
     TargetGone = 3,
+
+    /// <summary>Мир не смог исполнить намерение: голубь вздрагивает и выбирает другое.</summary>
+    Failed = 4,
 }
 
 /// <summary>Один фактор оценки — для объяснения решения (ТЗ §9.2, §36).</summary>
@@ -169,7 +172,8 @@ public sealed class UtilityBrain
             }
         }
 
-        var kept = chosen.Intent == pigeon.Intent && chosen.Target == pigeon.IntentTarget && trigger != DecisionTrigger.Completed;
+        // После завершения, неудачи или пропажи цели то же намерение — новая попытка, а не продолжение.
+        var kept = keepable && chosen.Intent == pigeon.Intent && chosen.Target == pigeon.IntentTarget;
         return new Decision(chosen, kept, trigger, pool);
     }
 

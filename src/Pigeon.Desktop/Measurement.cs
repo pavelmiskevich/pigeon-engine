@@ -26,6 +26,9 @@ internal sealed class Measurement(string outputPath)
     /// <summary>Фаза «движение»: голубь ходит на месте с частотой 60 кадров в секунду.</summary>
     public bool Moving => _phase == "moving";
 
+    /// <summary>Разогрев и покой: голубь стоит на месте, что бы ни выбрал ИИ.</summary>
+    public bool Resting => _phase is "warmup" or "idle";
+
     public bool Finished { get; private set; }
 
     public void OnFirstFrame() =>
