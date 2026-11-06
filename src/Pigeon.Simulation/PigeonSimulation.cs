@@ -44,6 +44,9 @@ public sealed class PigeonSimulation
     internal const double StartleValence = -0.2;
     internal const double StartleArousal = 0.35;
 
+    // Неудача исполнения: голубь вспархивает и оглядывается — лёгкое возбуждение.
+    internal const double FailureArousal = 0.1;
+
     private static readonly NeedModel NeedRules = NeedModel.Default;
     private static readonly MoodModel MoodRules = MoodModel.Default;
 
@@ -335,9 +338,9 @@ public sealed class PigeonSimulation
     /// <summary>Нужно ли решать в этом тике и почему (ТЗ §9.2, «когда пересчитывать»).</summary>
     private DecisionTrigger? DueTrigger(long tick)
     {
-        if (_forcedTrigger == DecisionTrigger.TargetGone)
+        if (_forcedTrigger is DecisionTrigger.TargetGone or DecisionTrigger.Failed)
         {
-            return DecisionTrigger.TargetGone;
+            return _forcedTrigger;
         }
 
         if (tick >= Pigeon.IntentEndsTick)
@@ -362,7 +365,7 @@ public sealed class PigeonSimulation
 
         // Завершённое или потерявшее цель намерение уходит на кулдаун до выбора, чтобы не
         // выбрать его снова сразу же.
-        if (trigger is DecisionTrigger.Completed or DecisionTrigger.TargetGone)
+        if (trigger is DecisionTrigger.Completed or DecisionTrigger.TargetGone or DecisionTrigger.Failed)
         {
             StartCooldown(Pigeon.Intent, tick);
         }
@@ -397,10 +400,13 @@ public sealed class PigeonSimulation
 
     private long TicksOf(TimeSpan duration) => (duration.Ticks + _options.Step.Ticks - 1) / _options.Step.Ticks;
 
-    /// <summary>Значимое событие пересматривает решение раньше минимальной длительности; потерянная цель важнее.</summary>
+    /// <summary>
+    /// Значимое событие пересматривает решение раньше минимальной длительности; потерянная цель и
+    /// неудача исполнения важнее остальных причин.
+    /// </summary>
     private void Force(DecisionTrigger trigger)
     {
-        if (_forcedTrigger != DecisionTrigger.TargetGone)
+        if (_forcedTrigger is not (DecisionTrigger.TargetGone or DecisionTrigger.Failed))
         {
             _forcedTrigger = trigger;
         }
@@ -456,6 +462,23 @@ public sealed class PigeonSimulation
                 var fright = 1.0 - 0.5 * Personality.Centered(Pigeon.Personality.Boldness);
                 Pigeon.SetMood(Pigeon.Mood.Nudge(StartleValence * fright, StartleArousal * fright));
                 Force(DecisionTrigger.Interrupted);
+                break;
+            case ActionFinished finished:
+                if (finished.Intent != Pigeon.Intent || finished.IntentStartedTick != Pigeon.IntentStartedTick)
+                {
+                    break;
+                }
+
+                if (finished.Outcome == ActionOutcome.Completed)
+                {
+                    Pigeon.EndIntentAt(tick);
+                }
+                else
+                {
+                    Pigeon.SetMood(Pigeon.Mood.Nudge(0.0, FailureArousal));
+                    Force(DecisionTrigger.Failed);
+                }
+
                 break;
             case AffordancesObserved observed:
                 _affordances = observed.Affordances;

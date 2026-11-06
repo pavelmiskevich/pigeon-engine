@@ -20,6 +20,9 @@ internal static class InputEventCodec
     /// <summary>Данные — число <c>DisplacementReason</c>.</summary>
     public const string FootingLost = "footing-lost";
 
+    /// <summary>Данные — «намерение;тик начала;исход;причина» числами, причина пустая при успехе.</summary>
+    public const string ActionFinished = "action-finished";
+
     /// <summary>Данные — JSON-массив affordances (формат снимка).</summary>
     public const string AffordancesObserved = "affordances-observed";
 
@@ -28,6 +31,8 @@ internal static class InputEventCodec
         Simulation.UserPoked => new(UserPoked, null),
         Simulation.AbsenceEnded absence => new(AbsenceEnded, absence.Duration.Ticks.ToString(CultureInfo.InvariantCulture)),
         Simulation.FootingLost lost => new(FootingLost, ((int)lost.Reason).ToString(CultureInfo.InvariantCulture)),
+        Simulation.ActionFinished finished => new(ActionFinished, string.Create(CultureInfo.InvariantCulture,
+            $"{(int)finished.Intent};{finished.IntentStartedTick};{(int)finished.Outcome};{(finished.Failure is { } f ? (int)f : string.Empty)}")),
         Simulation.AffordancesObserved observed => new(AffordancesObserved, SnapshotSerializer.SerializeAffordances(observed.Affordances)),
         _ => throw new NotSupportedException($"Вход {inputEvent.GetType().Name} не поддерживается хранилищем."),
     };
@@ -37,10 +42,26 @@ internal static class InputEventCodec
         UserPoked => new Simulation.UserPoked(),
         AbsenceEnded => new Simulation.AbsenceEnded(TimeSpan.FromTicks(ParseNumber(type, payload))),
         FootingLost => new Simulation.FootingLost((World.Abstractions.DisplacementReason)(int)ParseNumber(type, payload)),
+        ActionFinished => ParseActionFinished(type, payload),
         AffordancesObserved => new Simulation.AffordancesObserved(SnapshotSerializer.DeserializeAffordances(
             payload ?? throw new InvalidDataException($"У входа «{type}» нет данных."))),
         _ => throw new InvalidDataException($"Неизвестный тип входа в хранилище: «{type}»."),
     };
+
+    private static Simulation.ActionFinished ParseActionFinished(string type, string? payload)
+    {
+        var parts = payload?.Split(';') ?? [];
+        if (parts.Length != 4)
+        {
+            throw new InvalidDataException($"Повреждённые данные входа «{type}»: «{payload}».");
+        }
+
+        return new Simulation.ActionFinished(
+            (Core.IntentKind)(int)ParseNumber(type, parts[0]),
+            ParseNumber(type, parts[1]),
+            (World.Abstractions.ActionOutcome)(int)ParseNumber(type, parts[2]),
+            parts[3].Length == 0 ? null : (World.Abstractions.ActionFailure)(int)ParseNumber(type, parts[3]));
+    }
 
     private static long ParseNumber(string type, string? payload) =>
         long.TryParse(payload, NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)

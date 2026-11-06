@@ -32,7 +32,8 @@ internal sealed class PigeonRenderer(OverlayWindow pigeon, OverlayWindow shadow)
             _shadowDrawn = shadowKey;
         }
 
-        shadow.Present(frame.AnchorX + shadowLayout.Origin.X, frame.AnchorY + shadowLayout.Origin.Y);
+        // Тень лежит на земле под голубем, даже когда он в воздухе.
+        shadow.Present(frame.AnchorX + shadowLayout.Origin.X, frame.GroundY + shadowLayout.Origin.Y);
         pigeon.Present(frame.AnchorX + layout.Origin.X, frame.AnchorY + layout.Origin.Y);
     }
 

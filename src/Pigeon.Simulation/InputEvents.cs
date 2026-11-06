@@ -1,3 +1,4 @@
+using Pigeon.Core;
 using Pigeon.World.Abstractions;
 
 namespace Pigeon.Simulation;
@@ -64,6 +65,14 @@ public sealed record AffordancesObserved : InputEvent
 /// что делать дальше.
 /// </summary>
 public sealed record FootingLost(DisplacementReason Reason) : InputEvent;
+
+/// <summary>
+/// Мир закончил исполнять намерение (ТЗ §9.1): дошёл, долетел, исследовал — или не смог.
+/// Относится к намерению, начатому в тике <see cref="IntentStartedTick"/>: если голубь к этому
+/// времени уже занят другим, ответ устарел и не учитывается.
+/// </summary>
+public sealed record ActionFinished(IntentKind Intent, long IntentStartedTick, ActionOutcome Outcome, ActionFailure? Failure = null)
+    : InputEvent;
 
 /// <summary>Вход, применённый в конкретном тике.</summary>
 public readonly record struct JournalEntry(long Tick, InputEvent Event);

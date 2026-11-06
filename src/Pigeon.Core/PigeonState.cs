@@ -89,6 +89,9 @@ public sealed class PigeonState
         IntentEndsTick = endsTick;
     }
 
+    /// <summary>Мир сообщил, что намерение исполнено: оно заканчивается в тике <paramref name="tick"/>.</summary>
+    public void EndIntentAt(long tick) => IntentEndsTick = Math.Clamp(tick, IntentStartedTick, IntentEndsTick);
+
     public void AddTo(StableHasher hasher)
     {
         ArgumentNullException.ThrowIfNull(hasher);

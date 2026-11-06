@@ -59,6 +59,8 @@ public sealed class PigeonDomainStorageTests
             new(1, new AffordancesObserved(World)),
             new(30, new AffordancesObserved([])),
             new(31, new FootingLost(DisplacementReason.CapabilityLost)),
+            new(32, new ActionFinished(IntentKind.Relocate, 20, ActionOutcome.Completed)),
+            new(33, new ActionFinished(IntentKind.Explore, 25, ActionOutcome.Failed, ActionFailure.TargetGone)),
         ];
 
         await store.AppendAsync(Pet, 0, entries, TestContext.Current.CancellationToken);

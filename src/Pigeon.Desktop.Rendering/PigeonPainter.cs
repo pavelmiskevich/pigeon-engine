@@ -12,17 +12,31 @@ public sealed class ClipPlayer
 
     public string? Clip { get; private set; }
 
-    /// <summary>Начинает клип заново, если он другой; тот же клип продолжает играть.</summary>
-    public void Play(string clip, TimeSpan now)
+    /// <summary>
+    /// Клип, играющий с момента <paramref name="started"/>: другой клип или новый старт начинают его
+    /// заново, тот же — продолжают.
+    /// </summary>
+    public void Play(string clip, TimeSpan started)
     {
-        if (clip != Clip)
-        {
-            Clip = clip;
-            _started = now;
-        }
+        Clip = clip;
+        _started = started;
     }
 
     public int FrameAt(SpriteSheet sheet, TimeSpan now) => Locate(sheet, now).Index;
+
+    /// <summary>
+    /// Кадр шага по пройденному пути (ADR-0023): за длину шага проходит один цикл, поэтому опорная
+    /// лапа не скользит при любой скорости.
+    /// </summary>
+    /// <param name="walked">Путь, логические пиксели рисунка.</param>
+    public static int FrameByDistance(SpriteSheet sheet, double walked)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var count = sheet.Frames.Count;
+        var cycle = walked / sheet.Metrics.Stride;
+        return (int)Math.Floor((cycle - Math.Floor(cycle)) * count) % count;
+    }
 
     /// <summary>Когда сменится кадр; <see cref="TimeSpan.MaxValue"/> — не сменится (клип без повтора доиграл).</summary>
     public TimeSpan NextChange(SpriteSheet sheet, TimeSpan now) => Locate(sheet, now).Until;

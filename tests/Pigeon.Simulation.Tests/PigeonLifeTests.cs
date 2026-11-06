@@ -144,6 +144,51 @@ public sealed class PigeonLifeTests
     }
 
     [Fact]
+    public void CompletedAction_EndsTheIntentAtOnce()
+    {
+        var simulation = new PigeonSimulation(Seed, Options);
+        simulation.RunTicks(20);
+        var (intent, started) = (simulation.Pigeon.Intent, simulation.Pigeon.IntentStartedTick);
+        Assert.True(simulation.Pigeon.IntentEndsTick > simulation.Tick + 1);
+
+        simulation.Submit(new ActionFinished(intent, started, Pigeon.World.Abstractions.ActionOutcome.Completed));
+        simulation.RunTicks(1);
+
+        Assert.Equal(Pigeon.AI.DecisionTrigger.Completed, simulation.LastDecision!.Trigger);
+        Assert.Equal(simulation.Tick, simulation.Pigeon.IntentStartedTick);
+    }
+
+    [Fact]
+    public void FailedAction_StartlesALittleAndChoosesSomethingElse()
+    {
+        var simulation = new PigeonSimulation(Seed, Options);
+        simulation.RunTicks(20);
+        var (intent, started) = (simulation.Pigeon.Intent, simulation.Pigeon.IntentStartedTick);
+        var arousal = simulation.Pigeon.Mood.Arousal;
+
+        simulation.Submit(new ActionFinished(intent, started, Pigeon.World.Abstractions.ActionOutcome.Failed, Pigeon.World.Abstractions.ActionFailure.Unreachable));
+        simulation.RunTicks(1);
+
+        Assert.Equal(Pigeon.AI.DecisionTrigger.Failed, simulation.LastDecision!.Trigger);
+        Assert.True(simulation.Pigeon.Mood.Arousal > arousal + 0.05);
+        Assert.Equal(simulation.Tick, simulation.Pigeon.IntentStartedTick);
+    }
+
+    [Fact]
+    public void StaleActionResult_IsIgnored()
+    {
+        var simulation = new PigeonSimulation(Seed, Options);
+        simulation.RunTicks(20);
+        var before = simulation.Pigeon.ToSnapshot();
+
+        simulation.Submit(new ActionFinished(simulation.Pigeon.Intent, simulation.Pigeon.IntentStartedTick - 1, Pigeon.World.Abstractions.ActionOutcome.Completed));
+        simulation.RunTicks(1);
+
+        Assert.Equal(before.IntentStartedTick, simulation.Pigeon.IntentStartedTick);
+        Assert.Equal(before.IntentEndsTick, simulation.Pigeon.IntentEndsTick);
+    }
+
+    [Fact]
     public void AbsenceEnded_RejectsNegativeDuration()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AbsenceEnded(TimeSpan.FromSeconds(-1)));

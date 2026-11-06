@@ -70,6 +70,7 @@ public sealed class SpriteTests : IDisposable
 
         player.Play("idle", TimeSpan.FromSeconds(11));
         Assert.Equal(1, player.FrameAt(sheet, TimeSpan.FromSeconds(11.15)));
+        Assert.Equal(0, player.FrameAt(sheet, TimeSpan.FromSeconds(11.05)));
     }
 
     [Fact]
@@ -82,6 +83,19 @@ public sealed class SpriteTests : IDisposable
         Assert.Equal(1, player.FrameAt(sheet, TimeSpan.FromMilliseconds(60)));
         Assert.Equal(1, player.FrameAt(sheet, TimeSpan.FromSeconds(5)));
         Assert.Equal(TimeSpan.MaxValue, player.NextChange(sheet, TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public void WalkFrame_FollowsTheWalkedPathNotTheClock()
+    {
+        // Шаг рисунка — 4 логических пикселя на цикл из двух кадров.
+        using var sheet = SpriteSheet.Load(Path.Combine(_sheets.Directory, "idle@1x.json"));
+
+        Assert.Equal(0, ClipPlayer.FrameByDistance(sheet, 0));
+        Assert.Equal(0, ClipPlayer.FrameByDistance(sheet, 1.9));
+        Assert.Equal(1, ClipPlayer.FrameByDistance(sheet, 2.1));
+        Assert.Equal(0, ClipPlayer.FrameByDistance(sheet, 4.1));
+        Assert.Equal(1, ClipPlayer.FrameByDistance(sheet, 4002.5));
     }
 
     [Fact]

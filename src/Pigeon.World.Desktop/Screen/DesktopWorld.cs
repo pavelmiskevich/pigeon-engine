@@ -42,6 +42,8 @@ public sealed record PigeonDisplaced(MonitorKey? From, MonitorKey? To, Displacem
 /// Мир хранит, на каком мониторе голубь. Предлагаются поверхности этого монитора и другие
 /// мониторы как «другая территория» (<see cref="AffordanceKind.TerritoryZone"/>): поверхности
 /// чужого монитора доступны только после перелёта (ТЗ §12 — мониторы отдельные территории).
+/// Перелёт исполняет <see cref="Locomotion.DesktopLocomotion"/> и при посадке сообщает
+/// <see cref="MovePigeonTo"/>.
 /// </para>
 /// <para>
 /// Изменения экрана мир узнаёт опросом <see cref="Refresh"/> — хост вызывает его раз в
@@ -50,10 +52,9 @@ public sealed record PigeonDisplaced(MonitorKey? From, MonitorKey? To, Displacem
 /// </remarks>
 public sealed class DesktopWorld : IAffordanceSource
 {
-    /// <summary>Оценки поверхностей: пол безопасен, панель задач приятнее, край экрана — высоко и рискованно.</summary>
+    /// <summary>Оценки поверхностей: пол безопасен, панель задач приятнее.</summary>
     internal static readonly (double Attractiveness, double Risk, TimeSpan Travel) FloorSpot = (0.4, 0.0, TimeSpan.FromSeconds(4));
     internal static readonly (double Attractiveness, double Risk, TimeSpan Travel) TaskbarSpot = (0.6, 0.05, TimeSpan.FromSeconds(5));
-    internal static readonly (double Attractiveness, double Risk, TimeSpan Travel) ScreenTopSpot = (0.7, 0.3, TimeSpan.FromSeconds(8));
     /// <summary>Оценка перелёта на соседний монитор и на монитор через зазор («улетел за край и прилетел», ТЗ §10.1).</summary>
     public static readonly TimeSpan AdjacentFlight = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan GapFlight = TimeSpan.FromSeconds(30);
@@ -63,7 +64,6 @@ public sealed class DesktopWorld : IAffordanceSource
     private readonly IDesktopEnvironment _environment;
     private readonly IReadOnlyList<CapabilityCheck> _probed;
     private IReadOnlyList<Affordance> _affordances = [];
-    private (AffordanceId Target, MonitorKey Monitor)? _relocation;
 
     /// <param name="probed">Проба при запуске (ICapabilityProbe): без C1–C4 оверлея уровень L2 недоступен.</param>
     public DesktopWorld(IDesktopEnvironment environment, IReadOnlyList<CapabilityCheck> probed)
@@ -140,36 +140,53 @@ public sealed class DesktopWorld : IAffordanceSource
     }
 
     /// <summary>
-    /// Сообщает миру текущее намерение голубя. Пока локомоции нет (M1.5), перелёт на другой
-    /// монитор считается совершённым, когда намерение Relocate к этой территории закончилось.
+    /// Голубь перебрался на монитор <paramref name="monitor"/> — локомоция сообщает это при посадке
+    /// (M1.5). Возвращает событие, если монитор действительно сменился.
     /// </summary>
-    public PigeonRelocated? TrackIntent(IntentKind intent, AffordanceId? target)
+    public PigeonRelocated? MovePigeonTo(MonitorKey monitor)
     {
-        if (intent == IntentKind.Relocate && target is { } id)
-        {
-            if (_relocation?.Target != id && MonitorOfTerritory(id) is { } destination)
-            {
-                _relocation = (id, destination);
-            }
-
-            return null;
-        }
-
-        if (_relocation is not { } done)
+        if (PigeonMonitor is not { } from || from == monitor || Topology.Find(monitor) is null)
         {
             return null;
         }
 
-        _relocation = null;
-        if (PigeonMonitor is not { } from || from == done.Monitor || Topology.Find(done.Monitor) is null)
-        {
-            return null;
-        }
-
-        PigeonMonitor = done.Monitor;
+        PigeonMonitor = monitor;
         _affordances = BuildAffordances();
-        return new PigeonRelocated(from, done.Monitor);
+        return new PigeonRelocated(from, monitor);
     }
+
+    /// <summary>Поверхность, которую описывает affordance; <c>null</c> — это не поверхность или её больше нет.</summary>
+    public Surface? SurfaceOf(AffordanceId id) => Surfaces.FirstOrDefault(s => IdOf(s.Key) == id);
+
+    /// <summary>Монитор, который описывает affordance-территория; <c>null</c> — такого монитора нет.</summary>
+    public MonitorKey? MonitorOfTerritory(AffordanceId id)
+    {
+        foreach (var monitor in Topology.Monitors)
+        {
+            if (IdOf(ScreenSurfaces.MonitorPlace(monitor.Key)) == id)
+            {
+                return monitor.Key;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Где голубь живёт на мониторе: панель задач, иначе пол.</summary>
+    public Surface? HomeSurface(MonitorKey monitor) =>
+        Surfaces.Where(s => s.Monitor == monitor).OrderBy(s => s.Kind == SurfaceKind.Taskbar ? 0 : 1).FirstOrDefault();
+
+    /// <summary>Монитор, которому принадлежит точка экрана; <c>null</c> — точка вне мониторов.</summary>
+    public MonitorState? MonitorAt(double x, double y) =>
+        Topology.Monitors.FirstOrDefault(m =>
+            x >= m.Bounds.X && x < m.Bounds.X + m.Bounds.Width && y >= m.Bounds.Y && y < m.Bounds.Y + m.Bounds.Height);
+
+    /// <summary>
+    /// Ближайшая поверхность под точкой — на неё падает тень и на неё сядет падающий голубь;
+    /// <c>null</c> — под точкой поверхностей нет.
+    /// </summary>
+    public Surface? SurfaceBelow(double x, double y) =>
+        Surfaces.Where(s => x >= s.Left && x < s.Right && s.Y >= y - 0.5).OrderBy(s => s.Y).FirstOrDefault();
 
     /// <summary>Идентификатор affordance из ключа места: стабилен, пока жив объект, и между запусками.</summary>
     public static AffordanceId IdOf(PlaceKey place) => new(unchecked((long)StableHasher.HashString(place.Value)));
@@ -195,7 +212,6 @@ public sealed class DesktopWorld : IAffordanceSource
             : Topology.Monitors.OrderBy(m => Distance(m.Bounds, lost.Bounds)).ThenByDescending(m => m.IsPrimary).FirstOrDefault();
 
         PigeonMonitor = nearest?.Key;
-        _relocation = null;
         events.Add(new PigeonDisplaced(current, PigeonMonitor, reason));
     }
 
@@ -209,12 +225,9 @@ public sealed class DesktopWorld : IAffordanceSource
         var affordances = new List<Affordance>();
         foreach (var surface in Surfaces.Where(s => s.Monitor == here))
         {
-            var (kind, spot) = surface.Kind switch
-            {
-                SurfaceKind.Floor => (AffordanceKind.RestSpot, FloorSpot),
-                SurfaceKind.Taskbar => (AffordanceKind.PerchSpot, TaskbarSpot),
-                _ => (AffordanceKind.PerchSpot, ScreenTopSpot),
-            };
+            var (kind, spot) = surface.Kind == SurfaceKind.Floor
+                ? (AffordanceKind.RestSpot, FloorSpot)
+                : (AffordanceKind.PerchSpot, TaskbarSpot);
             affordances.Add(new Affordance(IdOf(surface.Key), surface.Key, kind, spot.Attractiveness, spot.Risk, spot.Travel));
         }
 
@@ -226,19 +239,6 @@ public sealed class DesktopWorld : IAffordanceSource
         }
 
         return [.. affordances.OrderBy(a => a.Id.Value)];
-    }
-
-    private MonitorKey? MonitorOfTerritory(AffordanceId id)
-    {
-        foreach (var monitor in Topology.Monitors)
-        {
-            if (IdOf(ScreenSurfaces.MonitorPlace(monitor.Key)) == id)
-            {
-                return monitor.Key;
-            }
-        }
-
-        return null;
     }
 
     /// <summary>L2 нужны C1–C5; C5 и C13 берутся из того, что экран отдаёт сейчас, остальное — из пробы.</summary>

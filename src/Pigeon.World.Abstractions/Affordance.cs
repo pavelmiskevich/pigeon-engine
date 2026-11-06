@@ -97,3 +97,20 @@ public enum DisplacementReason
     /// <summary>Платформа перестала давать возможность, на которой держался мир.</summary>
     CapabilityLost = 2,
 }
+
+/// <summary>Чем закончилось исполнение намерения в мире (ТЗ §9.1). Числа — часть формата журнала.</summary>
+public enum ActionOutcome
+{
+    Completed = 0,
+    Failed = 1,
+}
+
+/// <summary>Почему мир не смог исполнить намерение (ТЗ §9.1). Числа — часть формата журнала.</summary>
+public enum ActionFailure
+{
+    Unreachable = 0,
+    TargetGone = 1,
+    Interrupted = 2,
+    CapabilityLost = 3,
+    Timeout = 4,
+}
