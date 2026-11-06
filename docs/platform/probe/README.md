@@ -7,6 +7,9 @@
 | Файл | Окружение |
 |------|-----------|
 | `windows-11-laptop.json` | Windows 11, ноутбук, один монитор |
+| `windows-server-2022-ci-runner.json` | Windows Server 2022, раннер GitHub |
+| `macos-26-ci-runner.json` | macOS 26, раннер GitHub (Apple Silicon) |
+| `macos-27-macbook.txt` | macOS 27.2, MacBook на Apple Silicon, без разрешений; текстовый отчёт |
 | `linux-headless/x11-*.json` | Ubuntu 24.04 в контейнере: Xvfb без оконного менеджера, openbox, openbox + picom |
 | `linux-headless/wayland-*.json` | Ubuntu 24.04 в контейнере: Sway, Weston, Mutter и KWin в headless-режиме |
 

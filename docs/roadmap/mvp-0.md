@@ -67,7 +67,7 @@
 [docs/research/desktop-overlay.md](../research/desktop-overlay.md). ADR-0021 предлагает B: только он
 укладывается в бюджеты ТЗ §37. Два монитора (175 % и 100 %) проверены. ADR-0021 принят.
 
-### S0.3 — Проба Desktop World и `pigeon-probe` · переносится (утилита)
+### S0.3 — Проба Desktop World и `pigeon-probe` · переносится (утилита) · готово
 
 - Реализовать `ICapabilityProbe` и утилиту `pigeon-probe` (см. матрицу, §5).
 - Прогнать на Windows 11, Windows 10, macOS (Apple Silicon), Ubuntu X11, KDE Wayland,
@@ -79,7 +79,9 @@
 **Ход (2026-11-02):** `pigeon-probe` готов для Windows, macOS, X11 и Wayland. Проверены Windows 11,
 Windows Server 2022 (≈ Windows 10), macOS 26 на раннере CI, X11 и Wayland-композиторы (Sway, KWin,
 Mutter) в headless-режиме — [матрица, §6](../platform/capability-matrix.md#6-результаты-проверки-s03-2026-11-02).
-Осталось: macOS у живого пользователя и C1–C4 на macOS настоящим оверлеем (S0.2).
+**Итог (2026-11-05):** отчёт с живого MacBook (macOS 27.2) подтвердил ⚠️ у C10 и C12 без
+разрешений и ✅ у C11 — в матрице не осталось `?` по C1–C14. C1–C4 на macOS по-прежнему только по
+документации: их проверит настоящий оверлей на macOS.
 
 ### S0.4 — Прототип «голубь на окне» · timebox 1 неделя
 

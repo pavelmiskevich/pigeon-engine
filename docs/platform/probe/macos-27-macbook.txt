@@ -1,0 +1,35 @@
+pigeon-probe — macOS 27.2.0 Arm64, сессия quartz, WindowServer
+
+Уровень: L3 (FullDesktopWorld)
+
+Мониторы (1):
+  2940×1912 @ (0, 0), рабочая область 2940×1912 @ (0, 0), масштаб 2, основной
+Видимых окон: 5
+
+C1   ✅ TransparentOverlay   NSPanel без рамки, isOpaque = false [не проверено вызовом]
+C2   ⚠️ ClickThrough         ignoresMouseEvents, переключаемый по попаданию курсора в голубя [не проверено вызовом]
+          флаг действует на всё окно
+C3   ✅ AlwaysOnTop          NSWindow.level = .floating / .statusBar [не проверено вызовом]
+C4   ✅ NoFocusNoTaskbar     non-activating NSPanel + LSUIElement [не проверено вызовом]
+C5   ✅ MonitorEnumeration   CGGetActiveDisplayList + CGDisplayCopyDisplayMode
+          рабочая область (без меню-бара и Dock) — через NSScreen.visibleFrame, проба её не читает
+C6   ✅ MonitorEvents        CGDisplayRegisterReconfigurationCallback [не проверено вызовом]
+C7   ✅ GlobalCursor         CGEventGetLocation (без разрешений)
+C8   ✅ WindowGeometry       CGWindowListCopyWindowInfo: kCGWindowBounds (без разрешений)
+          обычных окон: 5
+C9   ✅ WindowZOrder         порядок CGWindowList (front-to-back) и kCGWindowLayer
+C10  ⚠️ WindowEvents         опрос CGWindowList
+          push-события — только через Accessibility; без него следование за окном опросом
+C11  ✅ ActiveApplication    kCGWindowOwnerPID переднего окна (имя приложения не читается)
+C12  ⚠️ WindowTitles         kCGWindowName
+          нужно разрешение Screen Recording; Pigeon его не запрашивает
+C13  ✅ TaskbarGeometry      NSScreen.visibleFrame (меню-бар и Dock) [не проверено вызовом]
+          Dock с автоскрытием — ⚠️
+C14  ⚠️ FullscreenDetection  отдельный Space + геометрия переднего окна [не проверено вызовом]
+C15  ⚠️ CaptureExclusion     NSWindow.sharingType = .none [не проверено вызовом]
+          ScreenCaptureKit в новых версиях может это игнорировать
+C16  ✅ IdleTime             CGEventSourceSecondsSinceLastEventType
+C17  ✅ SessionEvents        NSWorkspace: willSleep / didWake, screensDidSleep [не проверено вызовом]
+C18  ✅ SecretStore          Keychain (SecKeychainCopyDefault)
+C19  ✅ Autostart            SMAppService (macOS 13+) [не проверено вызовом]
+C20  ✅ AllVirtualDesktops   collectionBehavior = [.canJoinAllSpaces, .stationary] [не проверено вызовом]
