@@ -1,19 +1,28 @@
 using Pigeon.AI;
+using Pigeon.AI.Behavior;
 using Pigeon.Common.Hashing;
 using Pigeon.Common.Randomness;
 using Pigeon.Core;
+using Pigeon.World.Abstractions;
 
 namespace Pigeon.Simulation;
 
 /// <summary>
-/// Детерминированная симуляция одного голубя (ТЗ §3.3, ADR-0016): одинаковые seed, параметры
-/// и журнал входов дают одинаковое состояние на любой ОС и архитектуре.
+/// Детерминированная симуляция одного голубя (ТЗ §3.3, ADR-0016): одинаковые seed, параметры,
+/// конфигурация поведения и журнал входов дают одинаковое состояние на любой ОС и архитектуре.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Входы применяются в начале тика, в порядке поступления. Живой вход (<see cref="Submit"/>)
 /// попадает в ближайший тик и записывается в <see cref="Journal"/>; при воспроизведении те же
 /// записи подаются через <see cref="Replay"/>. Снимок (<see cref="CreateSnapshot"/>) вместе с
 /// журналом после него восстанавливает симуляцию без повтора всей истории (ADR-0017).
+/// </para>
+/// <para>
+/// Мир (<see cref="AttachWorld"/>) опрашивается в тиках решений сразу после входов. Если ответ
+/// изменился, он записывается в журнал как <see cref="AffordancesObserved"/> — как ответ любого
+/// внешнего провайдера, — поэтому при воспроизведении мир не нужен.
+/// </para>
 /// </remarks>
 public sealed class PigeonSimulation
 {
@@ -23,7 +32,7 @@ public sealed class PigeonSimulation
     public const string PersonalityStreamName = "pigeon.personality";
 
     // Тычок: голубь вздрагивает, получает внимание и новый стимул; разбуженный — недоволен.
-    internal const double PokeFatigue = 0.05;
+    internal const double PokeFatigue = 0.02;
     internal const double PokeAttentionRelief = 0.25;
     internal const double PokeBoredomRelief = 0.1;
     internal const double PokeValence = 0.1;
@@ -38,15 +47,24 @@ public sealed class PigeonSimulation
     private readonly FixedStepScheduler _scheduler;
     private readonly RandomStreams _random;
     private readonly IRandomSource _decisionRandom;
-    private readonly RestOrWanderPolicy _policy = new();
+    private readonly UtilityBrain _brain;
+    private readonly IntentCooldowns _cooldowns;
     private readonly Queue<JournalEntry> _pending = new();
     private readonly List<JournalEntry> _journal = [];
     private readonly long _journalOffset;
     private readonly double _stepSeconds;
 
-    /// <summary>Рождение голубя: трейты выводятся из <paramref name="seed"/>, настроение — в базовой точке.</summary>
-    public PigeonSimulation(ulong seed, SimulationOptions options)
-        : this(options, CreateScheduler(options), new RandomStreams(seed), tick: 0, journalOffset: 0)
+    private IReadOnlyList<Affordance> _affordances;
+    private IAffordanceSource? _world;
+    private DecisionTrigger? _forcedTrigger;
+
+    /// <summary>
+    /// Рождение голубя: трейты выводятся из <paramref name="seed"/> или задаются явно
+    /// (<paramref name="personality"/> — архетип для тестов и Developer Mode), настроение — в
+    /// базовой точке.
+    /// </summary>
+    public PigeonSimulation(ulong seed, SimulationOptions options, Personality? personality = null, BehaviorConfig? behavior = null)
+        : this(options, CreateScheduler(options), new RandomStreams(seed), personality, behavior)
     {
     }
 
@@ -54,9 +72,9 @@ public sealed class PigeonSimulation
         SimulationOptions options,
         FixedStepScheduler scheduler,
         RandomStreams random,
-        long tick,
-        long journalOffset)
-        : this(options, scheduler, random, Born(random), tick, journalOffset)
+        Personality? personality,
+        BehaviorConfig? behavior)
+        : this(options, scheduler, random, Born(random, personality), new IntentCooldowns(), [], behavior, tick: 0, journalOffset: 0)
     {
     }
 
@@ -65,6 +83,9 @@ public sealed class PigeonSimulation
         FixedStepScheduler scheduler,
         RandomStreams random,
         PigeonState pigeon,
+        IntentCooldowns cooldowns,
+        IReadOnlyList<Affordance> affordances,
+        BehaviorConfig? behavior,
         long tick,
         long journalOffset)
     {
@@ -72,6 +93,9 @@ public sealed class PigeonSimulation
         _scheduler = scheduler;
         _random = random;
         _decisionRandom = _random.Get(DecisionStreamName);
+        _brain = new UtilityBrain(behavior ?? BehaviorConfig.Default);
+        _cooldowns = cooldowns;
+        _affordances = affordances;
         _journalOffset = journalOffset;
         _stepSeconds = options.Step.Ticks / (double)TimeSpan.TicksPerSecond;
         Pigeon = pigeon;
@@ -90,6 +114,15 @@ public sealed class PigeonSimulation
     /// <summary>Метка настроения сейчас (ТЗ §7) — для анимаций, UI и контекста провайдеров.</summary>
     public MoodLabel MoodLabel => MoodRules.Classify(Pigeon.Mood, Pigeon.Needs, NeedRules);
 
+    /// <summary>Что мир предлагал при последнем опросе, по возрастанию идентификатора.</summary>
+    public IReadOnlyList<Affordance> Affordances => _affordances;
+
+    /// <summary>
+    /// Последнее решение с ведущими факторами (ТЗ §9.2, §36) — для Developer Mode и объяснения
+    /// пользователю. В снимок не входит: после восстановления появится при следующем решении.
+    /// </summary>
+    public Decision? LastDecision { get; private set; }
+
     /// <summary>
     /// Применённые входы в порядке применения — с начала симуляции или с момента восстановления
     /// из снимка. Глобальная позиция первой записи — <see cref="JournalOffset"/>.
@@ -102,8 +135,11 @@ public sealed class PigeonSimulation
     /// <summary>Полная длина журнала с начала жизни симуляции.</summary>
     public long JournalLength => _journalOffset + _journal.Count;
 
-    /// <summary>Восстанавливает симуляцию из снимка: дальше она идёт так же, как исходная.</summary>
-    public static PigeonSimulation Restore(SimulationSnapshot snapshot)
+    /// <summary>
+    /// Восстанавливает симуляцию из снимка: дальше она идёт так же, как исходная, если
+    /// конфигурация поведения та же (по умолчанию — встроенная).
+    /// </summary>
+    public static PigeonSimulation Restore(SimulationSnapshot snapshot, BehaviorConfig? behavior = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         snapshot.Validate();
@@ -113,6 +149,9 @@ public sealed class PigeonSimulation
             new FixedStepScheduler(snapshot.Options, snapshot.Accumulated),
             RandomStreams.Restore(snapshot.Seed, snapshot.RandomStreams),
             PigeonState.FromSnapshot(snapshot.Pigeon),
+            IntentCooldowns.Restore(snapshot.Cooldowns),
+            new AffordancesObserved(snapshot.Affordances).Affordances,
+            behavior,
             snapshot.Tick,
             snapshot.JournalLength);
 
@@ -135,7 +174,9 @@ public sealed class PigeonSimulation
             Pigeon.ToSnapshot(),
             [.. _random.Snapshot()],
             JournalLength,
-            [.. _pending]);
+            [.. _pending],
+            _cooldowns.Snapshot(),
+            _affordances);
 
     /// <summary>Записи журнала, начиная с глобальной позиции <paramref name="position"/>.</summary>
     public IReadOnlyList<JournalEntry> GetJournalFrom(long position)
@@ -146,16 +187,21 @@ public sealed class PigeonSimulation
         return [.. _journal.Skip((int)(position - _journalOffset))];
     }
 
-    /// <summary>Воспроизводит симуляцию по журналу и выполняет <paramref name="ticks"/> тиков.</summary>
+    /// <summary>
+    /// Воспроизводит симуляцию по журналу и выполняет <paramref name="ticks"/> тиков. Рождение и
+    /// конфигурация должны совпадать с исходными.
+    /// </summary>
     public static PigeonSimulation Replay(
         ulong seed,
         SimulationOptions options,
         IEnumerable<JournalEntry> journal,
-        long ticks)
+        long ticks,
+        Personality? personality = null,
+        BehaviorConfig? behavior = null)
     {
         ArgumentNullException.ThrowIfNull(journal);
 
-        var simulation = new PigeonSimulation(seed, options);
+        var simulation = new PigeonSimulation(seed, options, personality, behavior);
         long previousTick = 0;
         foreach (var entry in journal)
         {
@@ -171,6 +217,12 @@ public sealed class PigeonSimulation
         simulation.RunTicks(ticks);
         return simulation;
     }
+
+    /// <summary>
+    /// Подключает мир, который симуляция будет опрашивать в тиках решений; <c>null</c> — отключает.
+    /// В состояние не входит: после восстановления мир подключается заново.
+    /// </summary>
+    public void AttachWorld(IAffordanceSource? world) => _world = world;
 
     /// <summary>Подаёт вход; он будет применён в начале ближайшего тика.</summary>
     public void Submit(InputEvent inputEvent)
@@ -203,6 +255,13 @@ public sealed class PigeonSimulation
         hasher.Add(Tick);
         Pigeon.AddTo(hasher);
         _random.AddTo(hasher);
+        _cooldowns.AddTo(hasher);
+        hasher.Add(_affordances.Count);
+        foreach (var affordance in _affordances)
+        {
+            affordance.AddTo(hasher);
+        }
+
         hasher.Add(JournalLength);
         return hasher.Value;
     }
@@ -213,10 +272,10 @@ public sealed class PigeonSimulation
         return new FixedStepScheduler(options);
     }
 
-    internal static PigeonState Born(RandomStreams random)
+    internal static PigeonState Born(RandomStreams random, Personality? personality = null)
     {
-        var personality = Personality.Generate(random.Get(PersonalityStreamName));
-        return new PigeonState(personality, MoodRules.Baseline(personality));
+        var traits = personality ?? Personality.Generate(random.Get(PersonalityStreamName));
+        return new PigeonState(traits, MoodRules.Baseline(traits));
     }
 
     private void ExecuteTick()
@@ -226,26 +285,134 @@ public sealed class PigeonSimulation
         while (_pending.TryPeek(out var entry) && entry.Tick <= tick)
         {
             _pending.Dequeue();
-            var applied = entry with { Tick = tick };
-            Apply(applied.Event, tick);
-            _journal.Add(applied);
+            Record(entry with { Tick = tick });
         }
 
-        var resting = Pigeon.Intent == IntentKind.Rest;
-        var needs = NeedRules.Advance(Pigeon.Needs, Pigeon.Personality, resting, _stepSeconds);
+        // Мир смотрится на каждой плановой границе, даже если решение ещё рано пересматривать:
+        // пропавшая цель должна обнаружиться сразу, а не после минимальной длительности.
+        if (_world is not null && (tick % _options.DecisionIntervalTicks == 0 || DueTrigger(tick) is not null))
+        {
+            ObserveWorld(tick);
+        }
+
+        var before = Pigeon.Needs;
+        var needs = NeedRules.Advance(Pigeon.Needs, Pigeon.Personality, _brain.EffectsOf(Pigeon.Intent), _stepSeconds);
         Pigeon.SetNeeds(needs);
         Pigeon.SetMood(MoodRules.Advance(Pigeon.Mood, Pigeon.Personality, needs, NeedRules, _stepSeconds));
 
-        if (tick % _options.DecisionIntervalTicks == 0)
+        if (BecameUrgent(before, needs))
         {
-            var next = _policy.Decide(Pigeon, _decisionRandom);
-            if (next != Pigeon.Intent)
-            {
-                Pigeon.StartIntent(next, tick);
-            }
+            Force(DecisionTrigger.Interrupted);
+        }
+
+        if (DueTrigger(tick) is { } trigger)
+        {
+            Decide(tick, trigger);
         }
 
         Tick = tick;
+    }
+
+    private void Record(JournalEntry entry)
+    {
+        Apply(entry.Event, entry.Tick);
+        _journal.Add(entry);
+    }
+
+    private void ObserveWorld(long tick)
+    {
+        var observed = new AffordancesObserved(_world!.Current());
+        if (!observed.Affordances.SequenceEqual(_affordances))
+        {
+            Record(new JournalEntry(tick, observed));
+        }
+    }
+
+    /// <summary>Нужно ли решать в этом тике и почему (ТЗ §9.2, «когда пересчитывать»).</summary>
+    private DecisionTrigger? DueTrigger(long tick)
+    {
+        if (_forcedTrigger == DecisionTrigger.TargetGone)
+        {
+            return DecisionTrigger.TargetGone;
+        }
+
+        if (tick >= Pigeon.IntentEndsTick)
+        {
+            return DecisionTrigger.Completed;
+        }
+
+        if (_forcedTrigger is { } forced)
+        {
+            return forced;
+        }
+
+        var elapsed = TimeSpan.FromTicks((tick - Pigeon.IntentStartedTick) * _options.Step.Ticks);
+        return tick % _options.DecisionIntervalTicks == 0 && elapsed >= _brain.MinDurationOf(Pigeon.Intent)
+            ? DecisionTrigger.Periodic
+            : null;
+    }
+
+    private void Decide(long tick, DecisionTrigger trigger)
+    {
+        _forcedTrigger = null;
+
+        // Завершённое или потерявшее цель намерение уходит на кулдаун до выбора, чтобы не
+        // выбрать его снова сразу же.
+        if (trigger is DecisionTrigger.Completed or DecisionTrigger.TargetGone)
+        {
+            StartCooldown(Pigeon.Intent, tick);
+        }
+
+        _cooldowns.Prune(tick);
+        var decision = _brain.Decide(Pigeon, _affordances, _cooldowns, tick, trigger, _decisionRandom);
+        LastDecision = decision;
+
+        if (decision.KeptCurrent)
+        {
+            return;
+        }
+
+        if (trigger is DecisionTrigger.Periodic or DecisionTrigger.Interrupted)
+        {
+            StartCooldown(Pigeon.Intent, tick);
+        }
+
+        var choice = decision.Choice;
+        var duration = _brain.Config.Find(choice.Intent) is null ? _options.Step : _brain.PlanDuration(choice.Intent, _decisionRandom);
+        Pigeon.StartIntent(choice.Intent, choice.Target, tick, tick + Math.Max(1, TicksOf(duration)));
+    }
+
+    private void StartCooldown(IntentKind intent, long tick)
+    {
+        var cooldown = _brain.CooldownOf(intent);
+        if (cooldown > TimeSpan.Zero)
+        {
+            _cooldowns.Start(intent, tick + TicksOf(cooldown));
+        }
+    }
+
+    private long TicksOf(TimeSpan duration) => (duration.Ticks + _options.Step.Ticks - 1) / _options.Step.Ticks;
+
+    /// <summary>Значимое событие пересматривает решение раньше минимальной длительности; потерянная цель важнее.</summary>
+    private void Force(DecisionTrigger trigger)
+    {
+        if (_forcedTrigger != DecisionTrigger.TargetGone)
+        {
+            _forcedTrigger = trigger;
+        }
+    }
+
+    private static bool BecameUrgent(Needs before, Needs after)
+    {
+        foreach (var kind in Needs.Kinds)
+        {
+            if (NeedRules.LevelOf(after[kind]) == NeedLevel.Urgent && NeedRules.LevelOf(before[kind]) != NeedLevel.Urgent)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void Apply(InputEvent inputEvent, long tick)
@@ -253,7 +420,7 @@ public sealed class PigeonSimulation
         switch (inputEvent)
         {
             case UserPoked:
-                var woken = Pigeon.Intent == IntentKind.Rest;
+                var woken = Pigeon.Intent is IntentKind.Rest or IntentKind.Sleep;
                 Pigeon.SetNeeds(Pigeon.Needs
                     .Change(NeedKind.Fatigue, PokeFatigue)
                     .Change(NeedKind.Attention, -PokeAttentionRelief)
@@ -263,15 +430,26 @@ public sealed class PigeonSimulation
                     : Pigeon.Mood.Nudge(PokeValence, PokeArousal));
                 if (woken)
                 {
-                    Pigeon.StartIntent(IntentKind.Wander, tick);
+                    // Разбуженный голубь сразу снова не засыпает: отдых уходит на кулдаун.
+                    StartCooldown(Pigeon.Intent, tick);
                 }
 
+                Force(DecisionTrigger.Interrupted);
                 break;
             case AbsenceEnded absence:
                 var seconds = NeedRules.AbsenceSeconds(absence.Duration);
                 Pigeon.SetNeeds(NeedRules.CatchUpAbsence(Pigeon.Needs, Pigeon.Personality, absence.Duration));
                 var rested = MoodRules.CatchUpAbsence(Pigeon.Mood, Pigeon.Personality, seconds);
                 Pigeon.SetMood(MoodRules.WelcomeBack(rested, Pigeon.Personality, absence.Duration));
+                Force(DecisionTrigger.Interrupted);
+                break;
+            case AffordancesObserved observed:
+                _affordances = observed.Affordances;
+                if (Pigeon.IntentTarget is { } target && !_affordances.Any(a => a.Id == target))
+                {
+                    Force(DecisionTrigger.TargetGone);
+                }
+
                 break;
             default:
                 throw new NotSupportedException($"Неизвестный вход симуляции: {inputEvent.GetType().Name}.");

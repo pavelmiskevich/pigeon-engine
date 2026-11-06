@@ -5,11 +5,14 @@ namespace Pigeon.Simulation;
 /// Сколько тиков можно догнать за один вызов. Остаток отбрасывается, чтобы долгая пауза
 /// (сон компьютера, отладчик) не заморозила хост; досчёт отсутствия — отдельная логика ТЗ §6.3.
 /// </param>
-/// <param name="DecisionIntervalTicks">Как часто пересматривается намерение.</param>
+/// <param name="DecisionIntervalTicks">Как часто намерение пересматривается по плану.</param>
 public sealed record SimulationOptions(TimeSpan Step, int MaxTicksPerAdvance, int DecisionIntervalTicks)
 {
-    /// <summary>Desktop: 10 Гц (ТЗ §37), решение раз в секунду.</summary>
-    public static SimulationOptions Desktop { get; } = new(TimeSpan.FromMilliseconds(100), 50, 10);
+    /// <summary>
+    /// Desktop: 10 Гц (ТЗ §37), плановый пересмотр решения раз в 3 секунды (ТЗ §9.2: 2–5 с).
+    /// Завершение намерения и значимые события пересматривают его сразу.
+    /// </summary>
+    public static SimulationOptions Desktop { get; } = new(TimeSpan.FromMilliseconds(100), 50, 30);
 
     public void Validate()
     {

@@ -3,6 +3,18 @@ using Pigeon.Common.Randomness;
 
 namespace Pigeon.Core;
 
+/// <summary>Трейт по имени — для конфигурации поведения (ТЗ §9.2). Порядок — порядок полей <see cref="Personality"/>.</summary>
+public enum TraitKind
+{
+    Curiosity = 0,
+    Playfulness = 1,
+    Sociability = 2,
+    Boldness = 3,
+    Calmness = 4,
+    Independence = 5,
+    Energy = 6,
+}
+
 /// <summary>
 /// Семь базовых трейтов MVP-1 (ТЗ §5.2), каждый 0..100. Задаются при рождении из seed и дальше
 /// не меняются (Q6). Это не настройки для пользователя: трейты влияют на рост потребностей,
@@ -45,6 +57,18 @@ public readonly record struct Personality(
             Roll(random),
             Roll(random));
     }
+
+    public int this[TraitKind trait] => trait switch
+    {
+        TraitKind.Curiosity => Curiosity,
+        TraitKind.Playfulness => Playfulness,
+        TraitKind.Sociability => Sociability,
+        TraitKind.Boldness => Boldness,
+        TraitKind.Calmness => Calmness,
+        TraitKind.Independence => Independence,
+        TraitKind.Energy => Energy,
+        _ => throw new ArgumentOutOfRangeException(nameof(trait), trait, "Неизвестный трейт."),
+    };
 
     /// <summary>Трейт как сдвиг от середины: −1 при 0, 0 при 50, +1 при 100.</summary>
     public static double Centered(int trait) => (trait - Neutral) / (double)Neutral;

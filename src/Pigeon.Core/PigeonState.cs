@@ -30,6 +30,15 @@ public sealed class PigeonState
     /// <summary>Тик, в котором началось текущее намерение.</summary>
     public long IntentStartedTick { get; private set; }
 
+    /// <summary>Объект намерения в мире; у намерений без цели (отдых, прогулка) — нет.</summary>
+    public AffordanceId? IntentTarget { get; private set; }
+
+    /// <summary>
+    /// Тик, к которому намерение по плану завершается; после него выбирается новое. Мир может
+    /// завершить его раньше — событием о результате (ТЗ §9.1).
+    /// </summary>
+    public long IntentEndsTick { get; private set; }
+
     public static PigeonState FromSnapshot(PigeonStateSnapshot snapshot)
     {
         if (!Enum.IsDefined(snapshot.Intent))
@@ -38,16 +47,20 @@ public sealed class PigeonState
         }
 
         snapshot.Needs.Validate();
+        ArgumentOutOfRangeException.ThrowIfLessThan(snapshot.IntentEndsTick, snapshot.IntentStartedTick, nameof(snapshot));
 
         return new PigeonState(snapshot.Personality, snapshot.Mood)
         {
             Needs = snapshot.Needs,
             Intent = snapshot.Intent,
             IntentStartedTick = snapshot.IntentStartedTick,
+            IntentTarget = snapshot.IntentTarget,
+            IntentEndsTick = snapshot.IntentEndsTick,
         };
     }
 
-    public PigeonStateSnapshot ToSnapshot() => new(Personality, Needs, Mood, Intent, IntentStartedTick);
+    public PigeonStateSnapshot ToSnapshot() =>
+        new(Personality, Needs, Mood, Intent, IntentStartedTick, IntentTarget, IntentEndsTick);
 
     public void SetNeeds(Needs needs)
     {
@@ -61,10 +74,19 @@ public sealed class PigeonState
         Mood = mood;
     }
 
-    public void StartIntent(IntentKind intent, long tick)
+    public void StartIntent(IntentKind intent, AffordanceId? target, long tick, long endsTick)
     {
+        if (!Enum.IsDefined(intent))
+        {
+            throw new ArgumentOutOfRangeException(nameof(intent), intent, "Неизвестное намерение.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(endsTick, tick);
+
         Intent = intent;
+        IntentTarget = target;
         IntentStartedTick = tick;
+        IntentEndsTick = endsTick;
     }
 
     public void AddTo(StableHasher hasher)
@@ -76,5 +98,8 @@ public sealed class PigeonState
         Mood.AddTo(hasher);
         hasher.Add((int)Intent);
         hasher.Add(IntentStartedTick);
+        hasher.Add(IntentTarget.HasValue);
+        hasher.Add(IntentTarget?.Value ?? 0);
+        hasher.Add(IntentEndsTick);
     }
 }

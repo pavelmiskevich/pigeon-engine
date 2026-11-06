@@ -1,4 +1,6 @@
+using Pigeon.Core;
 using Pigeon.Simulation;
+using Pigeon.World.Abstractions;
 
 namespace Pigeon.Testing;
 
@@ -14,17 +16,30 @@ namespace Pigeon.Testing;
 internal static class GoldenSimulation
 {
     public const ulong Seed = 0x5EED_0001UL;
-    /// <summary>Час жизни: голубь успевает устать и отдохнуть (M1.1).</summary>
+
+    /// <summary>Час жизни: голубь устаёт, отдыхает и выбирает цели в мире (M1.1, M1.2).</summary>
     public const long Ticks = 36_000;
-    public const ulong ExpectedHash = 0xFFDB_991F_037D_605AUL;
+    public const ulong ExpectedHash = 0xDC53_F69E_3BD9_9FCEUL;
 
     public static JournalEntry[] Journal() =>
     [
+        new(1, new AffordancesObserved(World)),
         new(123, new UserPoked()),
         new(456, new UserPoked()),
         new(4_567, new UserPoked()),
+        new(12_000, new AffordancesObserved(World[1..])),
         new(20_000, new AbsenceEnded(TimeSpan.FromHours(13))),
+        new(24_000, new AffordancesObserved(World)),
         new(27_777, new UserPoked()),
+    ];
+
+    /// <summary>Мир эталона: точка интереса, насест, курсор и второй монитор.</summary>
+    private static Affordance[] World =>
+    [
+        new(new AffordanceId(1), new PlaceKey("poi:window"), AffordanceKind.PointOfInterest, 0.6, 0.1, TimeSpan.FromSeconds(10)),
+        new(new AffordanceId(2), new PlaceKey("perch:taskbar"), AffordanceKind.PerchSpot, 0.5, 0.0, TimeSpan.FromSeconds(5)),
+        new(new AffordanceId(3), new PlaceKey("cursor"), AffordanceKind.AttentionTarget, 0.7, 0.2, TimeSpan.FromSeconds(8)),
+        new(new AffordanceId(4), new PlaceKey("monitor:2"), AffordanceKind.TerritoryZone, 0.6, 0.1, TimeSpan.FromSeconds(30)),
     ];
 
     public static ulong Run() =>
