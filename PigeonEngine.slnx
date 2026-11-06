@@ -11,6 +11,7 @@
     <Project Path="src/Pigeon.Core/Pigeon.Core.csproj" />
     <Project Path="src/Pigeon.Desktop.Linux/Pigeon.Desktop.Linux.csproj" />
     <Project Path="src/Pigeon.Desktop.MacOS/Pigeon.Desktop.MacOS.csproj" />
+    <Project Path="src/Pigeon.Desktop.Rendering/Pigeon.Desktop.Rendering.csproj" />
     <Project Path="src/Pigeon.Desktop.Windows/Pigeon.Desktop.Windows.csproj" />
     <Project Path="src/Pigeon.Desktop/Pigeon.Desktop.csproj" />
     <Project Path="src/Pigeon.Persistence.Sqlite/Pigeon.Persistence.Sqlite.csproj" />
@@ -25,6 +26,7 @@
     <Project Path="tests/Pigeon.Architecture.Tests/Pigeon.Architecture.Tests.csproj" />
     <Project Path="tests/Pigeon.Common.Tests/Pigeon.Common.Tests.csproj" />
     <Project Path="tests/Pigeon.Core.Tests/Pigeon.Core.Tests.csproj" />
+    <Project Path="tests/Pigeon.Desktop.Rendering.Tests/Pigeon.Desktop.Rendering.Tests.csproj" />
     <Project Path="tests/Pigeon.Persistence.CrashWriter/Pigeon.Persistence.CrashWriter.csproj" />
     <Project Path="tests/Pigeon.Persistence.Tests/Pigeon.Persistence.Tests.csproj" />
     <Project Path="tests/Pigeon.Simulation.Tests/Pigeon.Simulation.Tests.csproj" />

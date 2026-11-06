@@ -1,0 +1,28 @@
+{
+  "time_to_first_frame_ms": 597,
+  "idle": {
+    "cpu_percent_of_one_core": 3.44,
+    "cpu_percent_total": 0.43,
+    "working_set_mb_avg": 48.5,
+    "working_set_mb_max": 49.3,
+    "private_mb": 18.7,
+    "managed_heap_mb": 1.4,
+    "fps": 10
+  },
+  "moving": {
+    "cpu_percent_of_one_core": 10.84,
+    "cpu_percent_total": 1.35,
+    "working_set_mb_avg": 60.3,
+    "working_set_mb_max": 61.1,
+    "private_mb": 29.8,
+    "managed_heap_mb": 3,
+    "fps": 58.3
+  },
+  "level": "ScreenWorld",
+  "monitors": [
+    "2560\u00D71600 @ 1.75"
+  ],
+  "sprite_sheets_loaded": 2,
+  "sprite_sheets_mb": 12.1,
+  "topmost_raises": 0
+}

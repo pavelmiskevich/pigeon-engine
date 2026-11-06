@@ -34,6 +34,12 @@ internal static class PigeonRig
     public const float Stride = 26;
     public const float WalkCycle = 0.8f;
 
+    // Тень на земле: эллипс с радиальным градиентом, сплющенный по вертикали.
+    public const float ShadowX = 118;
+    public const float ShadowRadius = 62;
+    public const float ShadowFlatten = 0.1f;
+    public const byte ShadowAlpha = 82;
+
     private static readonly SKColor Body = new(0x2A, 0x2C, 0x32);
     private static readonly SKColor BodyDark = new(0x17, 0x18, 0x1C);
     private static readonly SKColor Wing = new(0x2E, 0x31, 0x38);
@@ -156,11 +162,18 @@ internal static class PigeonRig
 
     // ----- Рисование -----
 
-    public static void Draw(SKCanvas canvas, Pose pose)
+    /// <param name="withShadow">
+    /// Тень в кадре — только для старого атласа прототипов MVP-0. В продукте тень рисует движок
+    /// (<see cref="ShadowX"/>, <see cref="ShadowRadius"/>): она зависит от высоты над землёй.
+    /// </param>
+    public static void Draw(SKCanvas canvas, Pose pose, bool withShadow)
     {
         var hx = 164 + pose.HeadX;
         var hy = 51 + pose.HeadY;
-        DrawShadow(canvas, pose);
+        if (withShadow)
+        {
+            DrawShadow(canvas, pose);
+        }
 
         const float cx = 118, cy = 112;
         var angle = pose.Pitch * MathF.PI / 180;
@@ -247,12 +260,12 @@ internal static class PigeonRig
         using var paint = new SKPaint
         {
             IsAntialias = true,
-            Shader = SKShader.CreateRadialGradient(new SKPoint(118, Ground + 2), 62,
-                [new SKColor(0, 0, 0, (byte)(lift == 1 ? 40 : 82)), SKColors.Transparent], SKShaderTileMode.Clamp),
+            Shader = SKShader.CreateRadialGradient(new SKPoint(ShadowX, Ground + 2), ShadowRadius,
+                [new SKColor(0, 0, 0, (byte)(lift == 1 ? 40 : ShadowAlpha)), SKColors.Transparent], SKShaderTileMode.Clamp),
         };
         canvas.Save();
-        canvas.Scale(1, 0.1f, 0, Ground + 2);
-        canvas.DrawCircle(118, Ground + 2, 62, paint);
+        canvas.Scale(1, ShadowFlatten, 0, Ground + 2);
+        canvas.DrawCircle(ShadowX, Ground + 2, ShadowRadius, paint);
         canvas.Restore();
     }
 
