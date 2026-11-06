@@ -123,6 +123,27 @@ public sealed class PigeonLifeTests
     }
 
     [Fact]
+    public void LostFooting_StartlesATimidPigeonMoreAndForcesADecision()
+    {
+        var timid = new PigeonSimulation(Seed, Options, Personality.Average with { Boldness = 0 });
+        var bold = new PigeonSimulation(Seed, Options, Personality.Average with { Boldness = 100 });
+        timid.RunTicks(100);
+        bold.RunTicks(100);
+        var timidBefore = timid.Pigeon.Mood.Arousal;
+        var boldBefore = bold.Pigeon.Mood.Arousal;
+
+        timid.Submit(new FootingLost(Pigeon.World.Abstractions.DisplacementReason.TerritoryGone));
+        bold.Submit(new FootingLost(Pigeon.World.Abstractions.DisplacementReason.TerritoryGone));
+        timid.RunTicks(1);
+        bold.RunTicks(1);
+
+        Assert.True(timid.Pigeon.Mood.Arousal - timidBefore > 2.5 * (bold.Pigeon.Mood.Arousal - boldBefore));
+        Assert.True(timid.Pigeon.Mood.Valence < bold.Pigeon.Mood.Valence);
+        Assert.Equal(Pigeon.AI.DecisionTrigger.Interrupted, timid.LastDecision!.Trigger);
+        Assert.Equal(101, timid.Tick);
+    }
+
+    [Fact]
     public void AbsenceEnded_RejectsNegativeDuration()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AbsenceEnded(TimeSpan.FromSeconds(-1)));

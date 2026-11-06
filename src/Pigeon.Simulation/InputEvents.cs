@@ -58,5 +58,12 @@ public sealed record AffordancesObserved : InputEvent
     public override int GetHashCode() => Affordances.Count;
 }
 
+/// <summary>
+/// Голубь лишился опоры не по своей воле (ТЗ §11.4, §12): отключили его монитор, пропала
+/// поверхность или возможность платформы. Голубь пугается — робкий сильнее — и сразу решает,
+/// что делать дальше.
+/// </summary>
+public sealed record FootingLost(DisplacementReason Reason) : InputEvent;
+
 /// <summary>Вход, применённый в конкретном тике.</summary>
 public readonly record struct JournalEntry(long Tick, InputEvent Event);

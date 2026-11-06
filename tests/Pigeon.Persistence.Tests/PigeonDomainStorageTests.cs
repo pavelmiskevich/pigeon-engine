@@ -54,7 +54,12 @@ public sealed class PigeonDomainStorageTests
     {
         using var db = new TestDatabase();
         var store = await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
-        JournalEntry[] entries = [new(1, new AffordancesObserved(World)), new(30, new AffordancesObserved([]))];
+        JournalEntry[] entries =
+        [
+            new(1, new AffordancesObserved(World)),
+            new(30, new AffordancesObserved([])),
+            new(31, new FootingLost(DisplacementReason.CapabilityLost)),
+        ];
 
         await store.AppendAsync(Pet, 0, entries, TestContext.Current.CancellationToken);
         var read = await store.ReadAsync(Pet, 0, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);

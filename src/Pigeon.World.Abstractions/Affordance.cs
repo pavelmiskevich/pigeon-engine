@@ -80,3 +80,20 @@ public interface IAffordanceSource
 {
     IReadOnlyList<Affordance> Current();
 }
+
+/// <summary>
+/// Почему голубь лишился опоры (ТЗ §9.1, §11.4, §12): мир сообщает об этом событием, а голубь
+/// пугается и выбирает, что делать дальше, — вместо того чтобы молча оказаться в другом месте.
+/// Числа — часть формата журнала.
+/// </summary>
+public enum DisplacementReason
+{
+    /// <summary>Место, где сидел голубь, исчезло: окно закрыли, панель скрылась.</summary>
+    PlaceGone = 0,
+
+    /// <summary>Отключили монитор, на котором был голубь.</summary>
+    TerritoryGone = 1,
+
+    /// <summary>Платформа перестала давать возможность, на которой держался мир.</summary>
+    CapabilityLost = 2,
+}
