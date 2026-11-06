@@ -14,14 +14,17 @@ namespace Pigeon.Testing;
 internal static class GoldenSimulation
 {
     public const ulong Seed = 0x5EED_0001UL;
-    public const long Ticks = 10_000;
-    public const ulong ExpectedHash = 0x773A_5AF9_27CC_B30FUL;
+    /// <summary>Час жизни: голубь успевает устать и отдохнуть (M1.1).</summary>
+    public const long Ticks = 36_000;
+    public const ulong ExpectedHash = 0xFFDB_991F_037D_605AUL;
 
     public static JournalEntry[] Journal() =>
     [
         new(123, new UserPoked()),
         new(456, new UserPoked()),
         new(4_567, new UserPoked()),
+        new(20_000, new AbsenceEnded(TimeSpan.FromHours(13))),
+        new(27_777, new UserPoked()),
     ];
 
     public static ulong Run() =>

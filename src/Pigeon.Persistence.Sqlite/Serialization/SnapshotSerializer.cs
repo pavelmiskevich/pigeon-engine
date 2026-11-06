@@ -25,14 +25,14 @@ public static class SnapshotSerializer
 
     internal static string SerializeJournal(IReadOnlyList<JournalEntry> entries) =>
         JsonSerializer.Serialize(
-            entries.Select(e => new JournalEntryDto(e.Tick, InputEventCodec.Encode(e.Event))).ToList(),
+            entries.Select(ToDto).ToList(),
             PersistenceJsonContext.Default.IReadOnlyListJournalEntryDto);
 
     internal static IReadOnlyList<JournalEntry> DeserializeJournal(string json)
     {
         var dtos = JsonSerializer.Deserialize(json, PersistenceJsonContext.Default.IReadOnlyListJournalEntryDto)
             ?? throw new InvalidDataException("Пустой журнал.");
-        return [.. dtos.Select(d => new JournalEntry(d.Tick, InputEventCodec.Decode(d.Type)))];
+        return [.. dtos.Select(FromDto)];
     }
 
     private static SnapshotDto ToDto(SimulationSnapshot snapshot) =>
@@ -44,22 +44,62 @@ public static class SnapshotSerializer
             snapshot.Options.DecisionIntervalTicks,
             snapshot.Tick,
             snapshot.Accumulated.Ticks,
-            snapshot.Pigeon.Fatigue,
+            snapshot.Pigeon.Needs.Fatigue,
             (int)snapshot.Pigeon.Intent,
             snapshot.Pigeon.IntentStartedTick,
             [.. snapshot.RandomStreams.Select(s => new RandomStreamDto(s.Key, s.Value.State, s.Value.Increment))],
             snapshot.JournalLength,
-            [.. snapshot.Pending.Select(e => new JournalEntryDto(e.Tick, InputEventCodec.Encode(e.Event)))]);
+            [.. snapshot.Pending.Select(ToDto)],
+            ToDto(snapshot.Pigeon.Personality),
+            snapshot.Pigeon.Needs.Boredom,
+            snapshot.Pigeon.Needs.Attention,
+            new MoodDto(snapshot.Pigeon.Mood.Valence, snapshot.Pigeon.Mood.Arousal, snapshot.Pigeon.Mood.Stress));
 
-    private static SimulationSnapshot FromDto(SnapshotDto dto) =>
-        new(
-            dto.FormatVersion,
-            dto.Seed,
-            new SimulationOptions(TimeSpan.FromTicks(dto.StepTicks), dto.MaxTicksPerAdvance, dto.DecisionIntervalTicks),
-            dto.Tick,
-            TimeSpan.FromTicks(dto.AccumulatedTicks),
-            new PigeonStateSnapshot(dto.Fatigue, (IntentKind)dto.Intent, dto.IntentStartedTick),
-            [.. (dto.RandomStreams ?? []).Select(s => KeyValuePair.Create(s.Name, new Pcg32State(s.State, s.Increment)))],
-            dto.JournalLength,
-            [.. (dto.Pending ?? []).Select(e => new JournalEntry(e.Tick, InputEventCodec.Decode(e.Type)))]);
+    private static SimulationSnapshot FromDto(SnapshotDto dto)
+    {
+        var options = new SimulationOptions(TimeSpan.FromTicks(dto.StepTicks), dto.MaxTicksPerAdvance, dto.DecisionIntervalTicks);
+        var accumulated = TimeSpan.FromTicks(dto.AccumulatedTicks);
+        var streams = (dto.RandomStreams ?? []).Select(s => KeyValuePair.Create(s.Name, new Pcg32State(s.State, s.Increment))).ToList();
+        var pending = (dto.Pending ?? []).Select(FromDto).ToList();
+
+        if (dto.FormatVersion == 1)
+        {
+            return SimulationSnapshot.FromVersion1(
+                dto.Seed, options, dto.Tick, accumulated, dto.Fatigue, (IntentKind)dto.Intent, dto.IntentStartedTick,
+                streams, dto.JournalLength, pending);
+        }
+
+        PigeonStateSnapshot pigeon = default;
+        if (dto.FormatVersion == SimulationSnapshot.CurrentFormatVersion)
+        {
+            if (dto.Personality is not { } p || dto.Boredom is not { } boredom || dto.Attention is not { } attention
+                || dto.Mood is not { } mood)
+            {
+                throw new InvalidDataException("В снимке нет личности, потребностей или настроения.");
+            }
+
+            pigeon = new PigeonStateSnapshot(
+                new Personality(p.Curiosity, p.Playfulness, p.Sociability, p.Boldness, p.Calmness, p.Independence, p.Energy),
+                new Needs(dto.Fatigue, boredom, attention),
+                new Mood(mood.Valence, mood.Arousal, mood.Stress),
+                (IntentKind)dto.Intent,
+                dto.IntentStartedTick);
+        }
+
+        // Неизвестный формат отклоняет SimulationSnapshot.Validate при восстановлении.
+        return new SimulationSnapshot(
+            dto.FormatVersion, dto.Seed, options, dto.Tick, accumulated, pigeon, streams, dto.JournalLength, pending);
+    }
+
+    private static PersonalityDto ToDto(Personality p) =>
+        new(p.Curiosity, p.Playfulness, p.Sociability, p.Boldness, p.Calmness, p.Independence, p.Energy);
+
+    private static JournalEntryDto ToDto(JournalEntry entry)
+    {
+        var encoded = InputEventCodec.Encode(entry.Event);
+        return new JournalEntryDto(entry.Tick, encoded.Type, encoded.Payload);
+    }
+
+    private static JournalEntry FromDto(JournalEntryDto dto) =>
+        new(dto.Tick, InputEventCodec.Decode(dto.Type, dto.Payload));
 }

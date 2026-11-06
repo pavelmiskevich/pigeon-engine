@@ -65,7 +65,11 @@ public sealed class SnapshotTests
 
         Assert.Throws<NotSupportedException>(() => PigeonSimulation.Restore(snapshot with { FormatVersion = 99 }));
         Assert.Throws<ArgumentException>(() => PigeonSimulation.Restore(
-            snapshot with { Pigeon = snapshot.Pigeon with { Fatigue = 1.5 } }));
+            snapshot with { Pigeon = snapshot.Pigeon with { Needs = snapshot.Pigeon.Needs with { Fatigue = 1.5 } } }));
+        Assert.Throws<ArgumentException>(() => PigeonSimulation.Restore(
+            snapshot with { Pigeon = snapshot.Pigeon with { Mood = snapshot.Pigeon.Mood with { Valence = -2.0 } } }));
+        Assert.Throws<ArgumentException>(() => PigeonSimulation.Restore(
+            snapshot with { Pigeon = snapshot.Pigeon with { Personality = snapshot.Pigeon.Personality with { Energy = 101 } } }));
         Assert.Throws<ArgumentException>(() => PigeonSimulation.Restore(
             snapshot with { Pigeon = snapshot.Pigeon with { Intent = (IntentKind)42 } }));
         Assert.Throws<ArgumentOutOfRangeException>(() => PigeonSimulation.Restore(

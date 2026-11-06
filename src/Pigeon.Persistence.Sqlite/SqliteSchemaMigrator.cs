@@ -36,6 +36,12 @@ public sealed class SqliteSchemaMigrator : ISchemaMigrator
         UPDATE snapshots SET journal_length = COALESCE(json_extract(payload, '$.journalLength'), 0);
         CREATE INDEX ix_snapshots_pet ON snapshots (pet_id, id);
         """,
+
+        // v3: данные входа — длительность отсутствия, позже решения провайдеров (ADR-0016).
+        // У старых входов данных нет, поэтому колонка допускает NULL.
+        """
+        ALTER TABLE journal ADD COLUMN payload TEXT NULL;
+        """,
     ];
 
     private readonly string _databasePath;
