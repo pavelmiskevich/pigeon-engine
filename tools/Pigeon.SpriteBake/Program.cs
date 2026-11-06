@@ -37,6 +37,10 @@ var clips = new (string Name, int Frames, int Fps, bool Loop, Func<float, Pose> 
     ("peck", 20, 30, false, PigeonRig.Peck),
     ("fly", 12, 40, true, PigeonRig.Fly),
     ("sleep", 8, 4, true, PigeonRig.Sleep),
+    ("sit", 12, 6, true, PigeonRig.Sit),
+    ("hop", 12, 30, false, PigeonRig.Hop),
+    ("takeoff", 10, 30, false, PigeonRig.TakeOff),
+    ("land", 10, 30, false, PigeonRig.Land),
 };
 
 var json = new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };

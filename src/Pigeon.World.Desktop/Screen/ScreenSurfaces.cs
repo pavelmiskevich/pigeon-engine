@@ -9,11 +9,8 @@ public enum SurfaceKind
     /// <summary>Нижняя кромка рабочей области — «пол» монитора.</summary>
     Floor = 0,
 
-    /// <summary>Верхняя кромка панели задач.</summary>
+    /// <summary>Верхняя кромка панели задач у нижнего края монитора.</summary>
     Taskbar = 1,
-
-    /// <summary>Верхний край монитора там, где выше нет другого монитора.</summary>
-    ScreenTop = 2,
 }
 
 /// <summary>
@@ -36,9 +33,10 @@ public static class ScreenSurfaces
     public const double MinLogicalLength = 48.0;
 
     /// <summary>
-    /// Для каждого монитора: пол или верх панели задач у нижнего края, верхний край монитора —
-    /// кроме участков, над которыми стоит другой монитор. Панель у верхнего края заменяет
-    /// верхний край; боковая панель поверхности не даёт. Порядок — порядок мониторов в топологии.
+    /// По одной поверхности на монитор: верх панели задач, если она у нижнего края, иначе нижняя
+    /// кромка рабочей области. Верхний край монитора и панель у верхнего края поверхностью не
+    /// бывают: голубь, стоящий на них, оказался бы над экраном, где его не видно. Порядок —
+    /// порядок мониторов в топологии.
     /// </summary>
     public static IReadOnlyList<Surface> Compute(DesktopTopology topology)
     {
@@ -47,10 +45,7 @@ public static class ScreenSurfaces
         var surfaces = new List<Surface>();
         foreach (var monitor in topology.Monitors)
         {
-            var taskbars = topology.Taskbars.Where(t => t.Monitor == monitor.Key).ToList();
-            var bottomBar = taskbars.FirstOrDefault(t => t.Edge == ScreenEdge.Bottom);
-            var topBar = taskbars.FirstOrDefault(t => t.Edge == ScreenEdge.Top);
-
+            var bottomBar = topology.Taskbars.FirstOrDefault(t => t.Monitor == monitor.Key && t.Edge == ScreenEdge.Bottom);
             if (bottomBar is not null)
             {
                 Add(surfaces, monitor, SurfaceKind.Taskbar, "taskbar", bottomBar.Bounds.Y, Span(bottomBar.Bounds, monitor));
@@ -59,24 +54,6 @@ public static class ScreenSurfaces
             {
                 var work = monitor.WorkArea;
                 Add(surfaces, monitor, SurfaceKind.Floor, "floor", work.Y + work.Height, (work.X, work.X + work.Width));
-            }
-
-            if (topBar is not null)
-            {
-                Add(surfaces, monitor, SurfaceKind.Taskbar, "taskbar-top", topBar.Bounds.Y, Span(topBar.Bounds, monitor));
-                continue;
-            }
-
-            var top = monitor.Bounds.Y;
-            var open = Subtract(
-                (monitor.Bounds.X, monitor.Bounds.X + monitor.Bounds.Width),
-                topology.Monitors
-                    .Where(other => other.Key != monitor.Key && other.Bounds.Y + other.Bounds.Height == top)
-                    .Select(other => (other.Bounds.X, other.Bounds.X + other.Bounds.Width)));
-
-            for (var i = 0; i < open.Count; i++)
-            {
-                Add(surfaces, monitor, SurfaceKind.ScreenTop, i == 0 ? "top" : $"top-{i + 1}", top, open[i]);
             }
         }
 
@@ -97,35 +74,4 @@ public static class ScreenSurfaces
 
     private static (int Left, int Right) Span(PixelRect rect, MonitorState monitor) =>
         (Math.Max(rect.X, monitor.Bounds.X), Math.Min(rect.X + rect.Width, monitor.Bounds.X + monitor.Bounds.Width));
-
-    /// <summary>Отрезок минус перекрывающие его отрезки; результат — по возрастанию X.</summary>
-    private static List<(int Left, int Right)> Subtract((int Left, int Right) span, IEnumerable<(int Left, int Right)> holes)
-    {
-        var parts = new List<(int Left, int Right)> { span };
-        foreach (var (holeLeft, holeRight) in holes.OrderBy(h => h.Left))
-        {
-            parts = [.. parts.SelectMany(p => Cut(p, holeLeft, holeRight))];
-        }
-
-        return parts;
-    }
-
-    private static IEnumerable<(int Left, int Right)> Cut((int Left, int Right) part, int holeLeft, int holeRight)
-    {
-        if (holeRight <= part.Left || holeLeft >= part.Right)
-        {
-            yield return part;
-            yield break;
-        }
-
-        if (holeLeft > part.Left)
-        {
-            yield return (part.Left, holeLeft);
-        }
-
-        if (holeRight < part.Right)
-        {
-            yield return (holeRight, part.Right);
-        }
-    }
 }

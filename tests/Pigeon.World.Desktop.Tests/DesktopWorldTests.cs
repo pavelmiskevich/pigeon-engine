@@ -16,7 +16,7 @@ public sealed class DesktopWorldTests
         Assert.Equal(DesktopLevel.ScreenWorld, world.Level);
         Assert.Equal(FakeDesktop.Laptop, world.PigeonMonitor);
         Assert.Equal(
-            ["desktop/external", "desktop/laptop/taskbar", "desktop/laptop/top"],
+            ["desktop/external", "desktop/laptop/taskbar"],
             world.Current().Select(a => a.PlaceKey.Value).Order(StringComparer.Ordinal));
     }
 
@@ -50,7 +50,7 @@ public sealed class DesktopWorldTests
 
         Assert.Equal(ids, first.Current().Select(a => a.Id));
         Assert.Equal(ids, second.Current().Select(a => a.Id));
-        Assert.Equal(DesktopWorld.IdOf(new PlaceKey("desktop/laptop/top")), first.Current().Single(a => a.PlaceKey.Value == "desktop/laptop/top").Id);
+        Assert.Equal(DesktopWorld.IdOf(new PlaceKey("desktop/laptop/taskbar")), first.Current().Single(a => a.PlaceKey.Value == "desktop/laptop/taskbar").Id);
     }
 
     [Fact]
@@ -144,20 +144,36 @@ public sealed class DesktopWorldTests
     }
 
     [Fact]
-    public void FinishedRelocation_MovesThePigeonToTheOtherMonitor()
+    public void MovingThePigeon_SwapsSurfacesAndTerritories()
     {
         var (world, _) = Create(FakeDesktop.TwoMonitors());
-        var territory = world.Current().Single(a => a.Kind == AffordanceKind.TerritoryZone).Id;
 
-        Assert.Null(world.TrackIntent(IntentKind.Relocate, territory));
-        Assert.Equal(FakeDesktop.Laptop, world.PigeonMonitor);
-        var moved = world.TrackIntent(IntentKind.Rest, null);
+        var moved = world.MovePigeonTo(FakeDesktop.External);
 
         Assert.Equal(new PigeonRelocated(FakeDesktop.Laptop, FakeDesktop.External), moved);
         Assert.Equal(FakeDesktop.External, world.PigeonMonitor);
         Assert.Contains(world.Current(), a => a.PlaceKey.Value == "desktop/external/floor");
         Assert.Contains(world.Current(), a => a.PlaceKey.Value == "desktop/laptop");
-        Assert.Null(world.TrackIntent(IntentKind.Wander, null));
+        Assert.Null(world.MovePigeonTo(FakeDesktop.External));
+        Assert.Null(world.MovePigeonTo(new MonitorKey("unplugged")));
+    }
+
+    [Fact]
+    public void Lookups_FindSurfacesMonitorsAndTheGroundBelow()
+    {
+        var (world, _) = Create(FakeDesktop.TwoMonitors());
+        var taskbar = world.Surfaces.Single(s => s.Monitor == FakeDesktop.Laptop);
+        var territory = world.Current().Single(a => a.Kind == AffordanceKind.TerritoryZone).Id;
+
+        Assert.Equal(taskbar, world.SurfaceOf(DesktopWorld.IdOf(taskbar.Key)));
+        Assert.Null(world.SurfaceOf(territory));
+        Assert.Equal(FakeDesktop.External, world.MonitorOfTerritory(territory));
+        Assert.Equal(taskbar, world.HomeSurface(FakeDesktop.Laptop));
+        Assert.Equal(FakeDesktop.External, world.MonitorAt(3000, 500)!.Key);
+        Assert.Null(world.MonitorAt(3000, 1200));
+        Assert.Equal(taskbar, world.SurfaceBelow(1000, 300));
+        Assert.Equal(1080, world.SurfaceBelow(3000, 300)!.Y);
+        Assert.Null(world.SurfaceBelow(3000, 1200));
     }
 
     private static (DesktopWorld World, FakeDesktop Desktop) Create(DesktopTopology topology)

@@ -1,65 +1,95 @@
 using Pigeon.Core;
+using Pigeon.World.Desktop.Locomotion;
 using Pigeon.World.Desktop.Screen;
 
 namespace Pigeon.Desktop.Rendering;
 
-/// <summary>Что показать на экране: клип, точка опоры в физических пикселях, направление и масштаб.</summary>
+/// <summary>Что показать на экране: клип, где лапы и тень, направление и масштаб.</summary>
+/// <param name="AnchorX">Середина между стопами, физические пиксели экрана.</param>
+/// <param name="GroundY">Где лежит тень — поверхность под голубем.</param>
 /// <param name="Scale">Физических пикселей экрана на логический пиксель рисунка.</param>
 /// <param name="Height">Высота над землёй, логические пиксели рисунка (для тени).</param>
-public readonly record struct StageFrame(string Clip, int AnchorX, int AnchorY, bool FacingLeft, double Scale, double Height);
+/// <param name="ClipStarted">С какого момента играет клип — для клипов без повтора.</param>
+/// <param name="Walked">Пройденный путь, логические пиксели рисунка — шаг идёт по нему (ADR-0023).</param>
+public readonly record struct StageFrame(
+    string Clip,
+    int AnchorX,
+    int AnchorY,
+    int GroundY,
+    bool FacingLeft,
+    double Scale,
+    double Height,
+    TimeSpan ClipStarted,
+    double Walked);
 
 /// <summary>
-/// Сцена голубя на Desktop L2 (M1.4): на какой поверхности он стоит, какой клип играет, какого он
-/// размера. Пока нет локомоции (M1.5), голубь стоит на панели задач или полу своего монитора, а
-/// клип выбирается по намерению; переход на другой монитор меняет размер плавно.
+/// Сцена голубя на Desktop (M1.4, M1.5): клип по походке и намерению, положение из локомоции,
+/// размер по монитору под голубем — при переходе на монитор с другим DPI он меняется плавно.
 /// </summary>
 public sealed class PigeonStage(double sizeOnScreen)
 {
     /// <summary>За сколько размер голубя подстраивается под DPI нового монитора.</summary>
     public static readonly TimeSpan ScaleTransitionTime = TimeSpan.FromMilliseconds(350);
 
-    /// <summary>Где на поверхности стоит голубь: доля длины от левого края. Сохраняется при смене монитора.</summary>
-    private const double Position = 0.78;
+    /// <summary>Исследуя место, голубь клюёт с такой паузой.</summary>
+    public static readonly TimeSpan PeckEvery = TimeSpan.FromMilliseconds(1400);
 
     private readonly ScaleTransition _scale = new(ScaleTransitionTime);
 
-    /// <summary>
-    /// Кадр сцены; <c>null</c> — голубю негде стоять (уровень ниже L2), окна прячутся.
-    /// </summary>
-    public StageFrame? Compose(DesktopWorld world, PigeonState pigeon, TimeSpan now)
+    /// <summary>Кадр сцены; <c>null</c> — голубя не видно: он за краем экрана или мониторов нет.</summary>
+    public StageFrame? Compose(DesktopWorld world, PigeonBody body, IntentKind intent, TimeSpan now)
     {
         ArgumentNullException.ThrowIfNull(world);
-        ArgumentNullException.ThrowIfNull(pigeon);
 
-        if (world.PigeonMonitor is not { } here || world.Topology.Find(here) is not { } monitor)
+        if (body.Gait == Gait.Hidden)
         {
             return null;
         }
 
-        var surface = HomeSurface(world.Surfaces, here);
-        if (surface is null)
+        var monitor = world.MonitorAt(body.X, body.Y - 1) ?? (body.Monitor is { } key ? world.Topology.Find(key) : null);
+        if (monitor is null)
         {
             return null;
         }
 
         _scale.SetTarget(sizeOnScreen * monitor.Scale, now);
-        var x = surface.Left + (int)Math.Round((surface.Right - surface.Left) * Position);
-        return new StageFrame(ClipFor(pigeon.Intent), x, surface.Y, FacingLeft: true, _scale.Value(now), Height: 0);
+        var clip = ClipFor(body.Gait, intent);
+        var started = body.GaitStarted;
+        if (clip == "peck" && now > started)
+        {
+            started += PeckEvery * Math.Floor((now - started) / PeckEvery);
+        }
+
+        return new StageFrame(
+            clip,
+            (int)Math.Round(body.X),
+            (int)Math.Round(body.Y),
+            (int)Math.Round(body.GroundY),
+            body.FacingLeft,
+            _scale.Value(now),
+            Math.Max(0, body.GroundY - body.Y) / (monitor.Scale * sizeOnScreen),
+            started,
+            body.Walked);
     }
 
     public bool IsAnimating(TimeSpan now) => _scale.IsAnimating(now);
 
-    /// <summary>Клип по намерению (ADR-0023: словарь анимаций → временный набор клипов MVP-1).</summary>
-    public static string ClipFor(IntentKind intent) => intent switch
+    /// <summary>
+    /// Клип по походке, а на месте — по намерению (ADR-0023: словарь анимаций → набор клипов MVP-1).
+    /// </summary>
+    public static string ClipFor(Gait gait, IntentKind intent) => gait switch
     {
-        IntentKind.Sleep or IntentKind.Rest => "sleep",
-        IntentKind.Explore => "peck",
-        _ => "idle",
+        Gait.Walk => "walk",
+        Gait.Hop => "hop",
+        Gait.TakeOff => "takeoff",
+        Gait.Fly => "fly",
+        Gait.Land => "land",
+        _ => intent switch
+        {
+            IntentKind.Sleep => "sleep",
+            IntentKind.Rest => "sit",
+            IntentKind.Explore => "peck",
+            _ => "idle",
+        },
     };
-
-    /// <summary>Панель задач, если есть; иначе пол; иначе любая поверхность монитора.</summary>
-    private static Surface? HomeSurface(IReadOnlyList<Surface> surfaces, MonitorKey monitor) =>
-        surfaces.Where(s => s.Monitor == monitor)
-            .OrderBy(s => s.Kind switch { SurfaceKind.Taskbar => 0, SurfaceKind.Floor => 1, _ => 2 })
-            .FirstOrDefault();
 }

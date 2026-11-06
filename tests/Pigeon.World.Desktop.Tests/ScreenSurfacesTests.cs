@@ -7,14 +7,23 @@ namespace Pigeon.World.Desktop.Tests;
 public sealed class ScreenSurfacesTests
 {
     [Fact]
-    public void BottomTaskbar_ReplacesTheFloor()
+    public void BottomTaskbar_IsThePlaceToStand()
     {
-        var surfaces = ScreenSurfaces.Compute(FakeDesktop.LaptopOnly());
+        var surface = Assert.Single(ScreenSurfaces.Compute(FakeDesktop.LaptopOnly()));
 
-        Assert.Equal([SurfaceKind.Taskbar, SurfaceKind.ScreenTop], surfaces.Select(s => s.Kind));
-        Assert.Equal(1516, surfaces[0].Y);
-        Assert.Equal("desktop/laptop/taskbar", surfaces[0].Key.Value);
-        Assert.Equal(0, surfaces[1].Y);
+        Assert.Equal(SurfaceKind.Taskbar, surface.Kind);
+        Assert.Equal(1516, surface.Y);
+        Assert.Equal("desktop/laptop/taskbar", surface.Key.Value);
+    }
+
+    [Fact]
+    public void MonitorWithoutTaskbar_HasAFloorAtTheBottomOfItsWorkArea()
+    {
+        var floor = ScreenSurfaces.Compute(FakeDesktop.TwoMonitors()).Single(s => s.Monitor == FakeDesktop.External);
+
+        Assert.Equal(SurfaceKind.Floor, floor.Kind);
+        Assert.Equal(1080, floor.Y);
+        Assert.Equal((2560, 4480), (floor.Left, floor.Right));
     }
 
     [Fact]
@@ -26,57 +35,32 @@ public sealed class ScreenSurfacesTests
         Assert.Equal(1920 / 1.5, surfaces.First(s => s.Monitor == FakeDesktop.External).LogicalLength, 1e-9);
     }
 
-    [Fact]
-    public void MonitorWithoutTaskbar_HasAFloorAtTheBottomOfItsWorkArea()
+    [Theory]
+    [InlineData(ScreenEdge.Top)]
+    [InlineData(ScreenEdge.Left)]
+    public void TaskbarNotAtTheBottom_LeavesTheFloor(ScreenEdge edge)
     {
-        var floor = ScreenSurfaces.Compute(FakeDesktop.TwoMonitors()).Single(s => s.Monitor == FakeDesktop.External && s.Kind == SurfaceKind.Floor);
-
-        Assert.Equal(1080, floor.Y);
-        Assert.Equal((2560, 4480), (floor.Left, floor.Right));
-    }
-
-    [Fact]
-    public void TopTaskbar_ReplacesTheScreenTopAndSideTaskbarGivesNothing()
-    {
-        var monitor = FakeDesktop.ExternalScreen(x: 0);
-        var top = new DesktopTopology(
-            [monitor with { WorkArea = new PixelRect(0, 48, 1920, 1032) }],
-            [new TaskbarState(FakeDesktop.External, new PixelRect(0, 0, 1920, 48), ScreenEdge.Top)],
-            TaskbarsKnown: true);
-        var side = new DesktopTopology(
-            [monitor with { WorkArea = new PixelRect(62, 0, 1858, 1080) }],
-            [new TaskbarState(FakeDesktop.External, new PixelRect(0, 0, 62, 1080), ScreenEdge.Left)],
-            TaskbarsKnown: true);
-
-        Assert.Equal([SurfaceKind.Floor, SurfaceKind.Taskbar], ScreenSurfaces.Compute(top).Select(s => s.Kind));
-        Assert.Equal([SurfaceKind.Floor, SurfaceKind.ScreenTop], ScreenSurfaces.Compute(side).Select(s => s.Kind));
-        Assert.Equal((62, 1920), (ScreenSurfaces.Compute(side)[0].Left, ScreenSurfaces.Compute(side)[0].Right));
-    }
-
-    [Fact]
-    public void MonitorAbove_CutsTheScreenTopOfTheOneBelow()
-    {
-        // Внешний монитор стоит над ноутбуком со сдвигом вправо: верх ноутбука открыт только слева.
+        // Стоять на верхней панели или на верхнем краю экрана нельзя — голубь оказался бы над экраном.
+        var work = edge == ScreenEdge.Top ? new PixelRect(0, 48, 1920, 1032) : new PixelRect(62, 0, 1858, 1080);
+        var bar = edge == ScreenEdge.Top ? new PixelRect(0, 0, 1920, 48) : new PixelRect(0, 0, 62, 1080);
         var topology = new DesktopTopology(
-            [FakeDesktop.LaptopScreen(), FakeDesktop.ExternalScreen(x: 1000, y: -1080)],
-            [FakeDesktop.LaptopTaskbar],
+            [FakeDesktop.ExternalScreen(x: 0) with { WorkArea = work }],
+            [new TaskbarState(FakeDesktop.External, bar, edge)],
             TaskbarsKnown: true);
 
-        var laptopTop = ScreenSurfaces.Compute(topology).Where(s => s.Monitor == FakeDesktop.Laptop && s.Kind == SurfaceKind.ScreenTop).ToList();
+        var surface = Assert.Single(ScreenSurfaces.Compute(topology));
 
-        Assert.Equal([(0, 1000)], laptopTop.Select(s => (s.Left, s.Right)));
+        Assert.Equal(SurfaceKind.Floor, surface.Kind);
+        Assert.Equal(1080, surface.Y);
+        Assert.Equal((work.X, work.X + work.Width), (surface.Left, surface.Right));
     }
 
     [Fact]
-    public void TooShortPieces_AreDropped()
+    public void TooShortSurface_IsDropped()
     {
-        // Над ноутбуком почти целиком стоит другой монитор: слева остаётся 60 физических пикселей —
-        // 34 логических на 175 %, голубю не хватит.
-        var topology = new DesktopTopology(
-            [FakeDesktop.LaptopScreen(), FakeDesktop.ExternalScreen(x: 60, y: -1080) with { Bounds = new PixelRect(60, -1080, 2500, 1080) }],
-            [FakeDesktop.LaptopTaskbar],
-            TaskbarsKnown: true);
+        // 80 физических пикселей на 200 % — 40 логических, голубю не хватит.
+        var tiny = new MonitorState(FakeDesktop.External, new PixelRect(0, 0, 80, 600), new PixelRect(0, 0, 80, 600), 2.0, true);
 
-        Assert.DoesNotContain(ScreenSurfaces.Compute(topology), s => s.Monitor == FakeDesktop.Laptop && s.Kind == SurfaceKind.ScreenTop);
+        Assert.Empty(ScreenSurfaces.Compute(new DesktopTopology([tiny], [], TaskbarsKnown: true)));
     }
 }

@@ -1,13 +1,14 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using Pigeon.Common.Randomness;
 using Pigeon.Common.Time;
 using Pigeon.Desktop.Rendering;
 using Pigeon.Desktop.Windows;
 using Pigeon.Desktop.Windows.Overlay;
 using Pigeon.Simulation;
+using Pigeon.World.Desktop.Locomotion;
 using Pigeon.World.Desktop.Screen;
-using SkiaSharp;
 
 namespace Pigeon.Desktop;
 
@@ -20,16 +21,13 @@ internal sealed class StopwatchClock : IClock
 }
 
 /// <summary>
-/// Голубь на Desktop Windows (M1.4): проба, мир L2, симуляция и окна оверлея в одном потоке.
-/// Окно перерисовывается, только когда меняется кадр, масштаб или место, — в покое процесс спит
-/// до следующего события (ТЗ §37).
+/// Голубь на Desktop Windows (M1.4, M1.5): проба, мир L2, симуляция, локомоция и окна оверлея в
+/// одном потоке. Пока голубь стоит, окно перерисовывается только при смене кадра, и процесс
+/// спит до следующего события; в движении кадры идут 60 раз в секунду (ТЗ §37).
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class DesktopHost(string spritesDirectory, Measurement? measurement)
 {
-    /// <summary>Логический пиксель рисунка на экране при масштабе 100 % — как в прототипах S0.8.</summary>
-    private const double SizeOnScreen = 0.62;
-
     private static readonly TimeSpan WorldRefresh = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan UnusedClip = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MovingFrame = TimeSpan.FromMilliseconds(1000.0 / 60);
@@ -51,6 +49,8 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         var simulation = new PigeonSimulation(seed, SimulationOptions.Desktop);
         simulation.AttachWorld(world);
         var driver = new SimulationDriver(clock, simulation);
+        var settings = LocomotionSettings.Default;
+        var locomotion = new DesktopLocomotion(world, new Pcg32(seed, 0x10C0), settings);
 
         using var sprites = new SpriteLibrary(spritesDirectory);
         using var shadow = new OverlayWindow("PigeonShadow", clickThrough: true);
@@ -59,9 +59,11 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         pigeon.RightClicked += (_, _) => MessageLoop.Quit();
         using var renderer = new PigeonRenderer(pigeon, shadow);
 
-        var stage = new PigeonStage(SizeOnScreen);
+        var stage = new PigeonStage(settings.SizeOnScreen);
         var player = new ClipPlayer();
         var lastRefresh = clock.Elapsed;
+        var lastLoop = clock.Elapsed;
+        var measuredWalk = 0.0;
         StageFrame? shown = null;
         var shownFrame = -1;
         var nextChange = TimeSpan.Zero;
@@ -75,24 +77,44 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
             if (now - lastRefresh >= WorldRefresh)
             {
                 lastRefresh = now;
-                foreach (var change in world.Refresh())
+                var changes = world.Refresh();
+                foreach (var displaced in changes.OfType<PigeonDisplaced>())
                 {
-                    if (change is PigeonDisplaced displaced)
-                    {
-                        simulation.Submit(new FootingLost(displaced.Reason));
-                    }
+                    simulation.Submit(new FootingLost(displaced.Reason));
                 }
+
+                Report(locomotion.OnWorldChanged(changes, now), simulation);
             }
 
             driver.Pump();
-            world.TrackIntent(simulation.Pigeon.Intent, simulation.Pigeon.IntentTarget);
+            var state = simulation.Pigeon;
+            var body = locomotion.Body;
+            var intent = state.Intent;
+            if (measurement is { Resting: true })
+            {
+                // Замер покоя: голубь стоит и дышит — клип idle, локомоция не идёт.
+                body = body.Gait == Gait.Hidden ? body : body with { Gait = Gait.Stand };
+                intent = Pigeon.Core.IntentKind.Groom;
+                locomotion.Update(now);
+            }
+            else
+            {
+                locomotion.Execute(state.Intent, state.IntentTarget, state.IntentStartedTick);
+                Report(locomotion.Update(now), simulation);
+                body = locomotion.Body;
+            }
 
-            var frame = stage.Compose(world, simulation.Pigeon, now);
             var moving = measurement is { Moving: true };
+            var frame = stage.Compose(world, body, intent, now);
             if (moving && frame is { } walking)
             {
-                frame = walking with { Clip = "walk" };
+                // Замер движения: шаг на месте со скоростью ходьбы, кадры по пройденному пути.
+                measuredWalk += (now - lastLoop).TotalSeconds * settings.WalkSpeed / settings.SizeOnScreen;
+                frame = walking with { Clip = "walk", Walked = measuredWalk };
             }
+
+            lastLoop = now;
+            var animating = moving || (measurement is not { Resting: true } && locomotion.IsMoving) || stage.IsAnimating(now);
 
             if (frame is not { } current)
             {
@@ -102,14 +124,20 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
             }
             else
             {
-                var bucket = SpriteLibrary.BucketFor(current.Scale);
-                var sheet = sprites.Get(current.Clip, bucket, now);
-                player.Play(current.Clip, now);
-                var index = player.FrameAt(sheet, now);
+                var sheet = sprites.Get(current.Clip, SpriteLibrary.BucketFor(current.Scale), now);
+                int index;
+                if (current.Clip == "walk")
+                {
+                    index = ClipPlayer.FrameByDistance(sheet, current.Walked);
+                }
+                else
+                {
+                    player.Play(current.Clip, current.ClipStarted);
+                    index = player.FrameAt(sheet, now);
+                }
 
-                // В движении и при смене масштаба кадры идут по расписанию 60 Гц; в покое —
-                // только когда сменился кадр клипа или сцена.
-                var animating = moving || stage.IsAnimating(now);
+                // В движении кадры идут по расписанию 60 Гц; на месте — только когда сменился
+                // кадр клипа или сцена.
                 var due = animating ? now >= nextChange : current != shown || index != shownFrame;
                 if (due)
                 {
@@ -148,20 +176,37 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                 }
             }
 
-            if (moving || stage.IsAnimating(now))
+            if (animating)
             {
                 // В движении кадры идут по композиции DWM: таймер ожидания слишком груб для 60 Гц.
                 MessageLoop.WaitForComposition();
                 continue;
             }
 
-            // В покое — спать до смены кадра или опроса экрана. Отдельно ради тика симуляции не
+            // На месте — спать до смены кадра или опроса экрана. Отдельно ради тика симуляции не
             // просыпаемся: она досчитает пропущенные шаги при следующем пробуждении.
             var wake = Min(nextChange, lastRefresh + WorldRefresh, now + LongestSleep);
             MessageLoop.Wait(wake - clock.Elapsed);
         }
 
         return 0;
+    }
+
+    /// <summary>События локомоции — в симуляцию: результат исполнения и потеря опоры.</summary>
+    private static void Report(IReadOnlyList<LocomotionEvent> events, PigeonSimulation simulation)
+    {
+        foreach (var e in events)
+        {
+            switch (e)
+            {
+                case ActionReported report:
+                    simulation.Submit(new ActionFinished(report.Intent, report.IntentStartedTick, report.Outcome, report.Failure));
+                    break;
+                case FootingGone gone:
+                    simulation.Submit(new FootingLost(gone.Reason));
+                    break;
+            }
+        }
     }
 
     private static TimeSpan Min(TimeSpan a, TimeSpan b, TimeSpan c) => a < b ? (a < c ? a : c) : (b < c ? b : c);
