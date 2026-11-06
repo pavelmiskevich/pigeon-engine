@@ -17,10 +17,14 @@ internal static class InputEventCodec
     /// <summary>Данные — длительность отсутствия в тиках <see cref="TimeSpan"/> (100 нс), десятичным числом.</summary>
     public const string AbsenceEnded = "absence-ended";
 
+    /// <summary>Данные — JSON-массив affordances (формат снимка).</summary>
+    public const string AffordancesObserved = "affordances-observed";
+
     public static EncodedInput Encode(InputEvent inputEvent) => inputEvent switch
     {
         Simulation.UserPoked => new(UserPoked, null),
         Simulation.AbsenceEnded absence => new(AbsenceEnded, absence.Duration.Ticks.ToString(CultureInfo.InvariantCulture)),
+        Simulation.AffordancesObserved observed => new(AffordancesObserved, SnapshotSerializer.SerializeAffordances(observed.Affordances)),
         _ => throw new NotSupportedException($"Вход {inputEvent.GetType().Name} не поддерживается хранилищем."),
     };
 
@@ -28,6 +32,8 @@ internal static class InputEventCodec
     {
         UserPoked => new Simulation.UserPoked(),
         AbsenceEnded => new Simulation.AbsenceEnded(TimeSpan.FromTicks(ParseTicks(type, payload))),
+        AffordancesObserved => new Simulation.AffordancesObserved(SnapshotSerializer.DeserializeAffordances(
+            payload ?? throw new InvalidDataException($"У входа «{type}» нет данных."))),
         _ => throw new InvalidDataException($"Неизвестный тип входа в хранилище: «{type}»."),
     };
 

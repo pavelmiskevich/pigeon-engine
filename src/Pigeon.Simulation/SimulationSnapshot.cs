@@ -1,5 +1,6 @@
 using Pigeon.Common.Randomness;
 using Pigeon.Core;
+using Pigeon.World.Abstractions;
 
 namespace Pigeon.Simulation;
 
@@ -12,6 +13,8 @@ namespace Pigeon.Simulation;
 /// <param name="RandomStreams">Состояния потоков случайности в порядке имён.</param>
 /// <param name="JournalLength">Сколько входов применено с начала жизни симуляции.</param>
 /// <param name="Pending">Входы, поданные, но ещё не применённые.</param>
+/// <param name="Cooldowns">До какого тика недоступны намерения, в порядке намерений.</param>
+/// <param name="Affordances">Что мир предлагал при последнем опросе.</param>
 public sealed record SimulationSnapshot(
     int FormatVersion,
     ulong Seed,
@@ -21,13 +24,15 @@ public sealed record SimulationSnapshot(
     PigeonStateSnapshot Pigeon,
     IReadOnlyList<KeyValuePair<string, Pcg32State>> RandomStreams,
     long JournalLength,
-    IReadOnlyList<JournalEntry> Pending)
+    IReadOnlyList<JournalEntry> Pending,
+    IReadOnlyList<KeyValuePair<IntentKind, long>> Cooldowns,
+    IReadOnlyList<Affordance> Affordances)
 {
     /// <summary>
-    /// 2 — личность, три потребности и настроение (M1.1); 1 — только усталость (S0.6), читается
-    /// через <see cref="FromVersion1"/>.
+    /// 3 — цель и план намерения, кулдауны и affordances мира (M1.2); 2 — личность, потребности
+    /// и настроение (M1.1); 1 — только усталость (S0.6), читается через <see cref="FromVersion1"/>.
     /// </summary>
-    public const int CurrentFormatVersion = 2;
+    public const int CurrentFormatVersion = 3;
 
     /// <summary>
     /// Снимок формата 1 в текущем формате. В первом формате личности ещё не было, поэтому она
@@ -48,12 +53,16 @@ public sealed record SimulationSnapshot(
     {
         var streams = Common.Randomness.RandomStreams.Restore(seed, randomStreams);
         var born = PigeonSimulation.Born(streams);
+
+        // Плана у намерения в первом формате не было: оно завершается на следующем тике.
         var pigeon = new PigeonStateSnapshot(
             born.Personality,
             Needs.None with { Fatigue = fatigue },
             born.Mood,
             intent,
-            intentStartedTick);
+            intentStartedTick,
+            IntentTarget: null,
+            IntentEndsTick: Math.Max(tick, intentStartedTick));
 
         return new SimulationSnapshot(
             CurrentFormatVersion,
@@ -64,7 +73,9 @@ public sealed record SimulationSnapshot(
             pigeon,
             streams.Snapshot(),
             journalLength,
-            pending);
+            pending,
+            [],
+            []);
     }
 
     public void Validate()
@@ -78,6 +89,8 @@ public sealed record SimulationSnapshot(
         ArgumentNullException.ThrowIfNull(Options);
         ArgumentNullException.ThrowIfNull(RandomStreams);
         ArgumentNullException.ThrowIfNull(Pending);
+        ArgumentNullException.ThrowIfNull(Cooldowns);
+        ArgumentNullException.ThrowIfNull(Affordances);
         Options.Validate();
         ArgumentOutOfRangeException.ThrowIfNegative(Tick);
         ArgumentOutOfRangeException.ThrowIfNegative(JournalLength);

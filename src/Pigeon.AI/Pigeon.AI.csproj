@@ -10,4 +10,9 @@
     <ProjectReference Include="../Pigeon.World.Abstractions/Pigeon.World.Abstractions.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Каталог намерений по умолчанию (ТЗ §9.2): данные, а не код. -->
+    <EmbeddedResource Include="Behavior/behavior.json" LogicalName="Pigeon.AI.behavior.json" />
+  </ItemGroup>
+
 </Project>

@@ -19,6 +19,39 @@ public sealed class DeterminismTests
         Assert.Equal(GoldenSimulation.ExpectedHash, GoldenSimulation.Run());
     }
 
+    /// <summary>Эталон проверяет то, что должен: цели в мире, сон и пропажу цели.</summary>
+    [Fact]
+    public void GoldenRun_CoversTargetedIntentsAndSleep()
+    {
+        var simulation = new PigeonSimulation(GoldenSimulation.Seed, Options);
+        var journal = new Queue<JournalEntry>(GoldenSimulation.Journal());
+        var intents = new HashSet<IntentKind>();
+        var triggers = new HashSet<Pigeon.AI.DecisionTrigger>();
+
+        for (long tick = 1; tick <= GoldenSimulation.Ticks; tick++)
+        {
+            while (journal.TryPeek(out var entry) && entry.Tick == tick)
+            {
+                simulation.Submit(journal.Dequeue().Event);
+            }
+
+            simulation.RunTicks(1);
+            intents.Add(simulation.Pigeon.Intent);
+            if (simulation.LastDecision is { } decision)
+            {
+                triggers.Add(decision.Trigger);
+            }
+        }
+
+        Assert.Equal(GoldenSimulation.ExpectedHash, simulation.ComputeStateHash());
+        Assert.Contains(intents, i => BehaviorConfigTargets(i));
+        Assert.Contains(IntentKind.Rest, intents);
+        Assert.Contains(Pigeon.AI.DecisionTrigger.Interrupted, triggers);
+    }
+
+    private static bool BehaviorConfigTargets(IntentKind intent) =>
+        Pigeon.AI.Behavior.BehaviorConfig.Default.Find(intent)!.HasTarget;
+
     [Fact]
     public void SameTotalTime_GivesTheSameState_RegardlessOfFrameSlicing()
     {
@@ -82,19 +115,19 @@ public sealed class DeterminismTests
     }
 
     [Fact]
-    public void Pigeon_AlternatesBetweenWanderingAndResting()
+    public void Pigeon_ChoosesIntentsOnItsOwnWithoutAWorld()
     {
         var simulation = new PigeonSimulation(Seed, Options);
         var intents = new HashSet<IntentKind>();
 
-        // Час жизни: голубь со средним Energy устаёт до отдыха примерно за полчаса.
-        for (var i = 0; i < 36_000; i++)
+        // Два часа жизни без мира: остаются намерения без цели.
+        for (var i = 0; i < 72_000; i++)
         {
             simulation.RunTicks(1);
             intents.Add(simulation.Pigeon.Intent);
         }
 
-        Assert.Equal([IntentKind.Wander, IntentKind.Rest], intents.Order());
+        Assert.Equal([IntentKind.Wander, IntentKind.Rest, IntentKind.Sleep, IntentKind.Groom], intents.Order());
     }
 
     [Fact]
@@ -109,7 +142,7 @@ public sealed class DeterminismTests
         simulation.Submit(new UserPoked());
         simulation.RunTicks(1);
 
-        Assert.Equal(IntentKind.Wander, simulation.Pigeon.Intent);
+        Assert.NotEqual(IntentKind.Rest, simulation.Pigeon.Intent);
         Assert.Equal(simulation.Tick, simulation.Journal[^1].Tick);
     }
 

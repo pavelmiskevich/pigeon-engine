@@ -6,4 +6,6 @@ public readonly record struct PigeonStateSnapshot(
     Needs Needs,
     Mood Mood,
     IntentKind Intent,
-    long IntentStartedTick);
+    long IntentStartedTick,
+    AffordanceId? IntentTarget = null,
+    long IntentEndsTick = 0);

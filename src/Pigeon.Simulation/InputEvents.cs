@@ -1,3 +1,5 @@
+using Pigeon.World.Abstractions;
+
 namespace Pigeon.Simulation;
 
 /// <summary>
@@ -22,6 +24,38 @@ public sealed record AbsenceEnded : InputEvent
     }
 
     public TimeSpan Duration { get; }
+}
+
+/// <summary>
+/// Что мир предлагает голубю (ТЗ §32): ответ <see cref="Pigeon.World.Abstractions.IAffordanceSource"/>,
+/// записанный в журнал. Список упорядочивается по идентификатору, повторы идентификаторов запрещены.
+/// </summary>
+public sealed record AffordancesObserved : InputEvent
+{
+    public AffordancesObserved(IEnumerable<Affordance> affordances)
+    {
+        ArgumentNullException.ThrowIfNull(affordances);
+
+        var sorted = affordances.OrderBy(a => a.Id.Value).ToArray();
+        for (var i = 0; i < sorted.Length; i++)
+        {
+            ArgumentNullException.ThrowIfNull(sorted[i], nameof(affordances));
+            sorted[i].Validate();
+            if (i > 0 && sorted[i].Id == sorted[i - 1].Id)
+            {
+                throw new ArgumentException($"Affordance {sorted[i].Id} встречается дважды.", nameof(affordances));
+            }
+        }
+
+        Affordances = sorted;
+    }
+
+    public IReadOnlyList<Affordance> Affordances { get; }
+
+    public bool Equals(AffordancesObserved? other) =>
+        other is not null && Affordances.SequenceEqual(other.Affordances);
+
+    public override int GetHashCode() => Affordances.Count;
 }
 
 /// <summary>Вход, применённый в конкретном тике.</summary>

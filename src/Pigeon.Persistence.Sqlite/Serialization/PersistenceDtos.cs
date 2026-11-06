@@ -4,7 +4,7 @@ namespace Pigeon.Persistence.Sqlite.Serialization;
 
 /// <summary>
 /// Формат снимка на диске. Отделён от доменного типа, чтобы домен менялся свободно. Поля,
-/// которых не было в формате 1, допускают null: так читаются старые снимки.
+/// которых не было в форматах 1 и 2, допускают null: так читаются старые снимки.
 /// </summary>
 internal sealed record SnapshotDto(
     int FormatVersion,
@@ -23,7 +23,22 @@ internal sealed record SnapshotDto(
     PersonalityDto? Personality = null,
     double? Boredom = null,
     double? Attention = null,
-    MoodDto? Mood = null);
+    MoodDto? Mood = null,
+    long? IntentTarget = null,
+    long? IntentEndsTick = null,
+    IReadOnlyList<CooldownDto>? Cooldowns = null,
+    IReadOnlyList<AffordanceDto>? Affordances = null);
+
+internal sealed record CooldownDto(int Intent, long UntilTick);
+
+/// <param name="Kind">Число <c>AffordanceKind</c>.</param>
+internal sealed record AffordanceDto(
+    long Id,
+    string PlaceKey,
+    int Kind,
+    double Attractiveness,
+    double Risk,
+    long TravelCostTicks);
 
 internal sealed record PersonalityDto(
     int Curiosity,
@@ -58,4 +73,5 @@ internal sealed record ArchiveManifestDto(
 [JsonSerializable(typeof(SnapshotDto))]
 [JsonSerializable(typeof(ArchiveManifestDto))]
 [JsonSerializable(typeof(IReadOnlyList<JournalEntryDto>))]
+[JsonSerializable(typeof(IReadOnlyList<AffordanceDto>))]
 internal sealed partial class PersistenceJsonContext : JsonSerializerContext;

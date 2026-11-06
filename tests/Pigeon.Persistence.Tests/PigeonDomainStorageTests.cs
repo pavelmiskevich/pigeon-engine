@@ -3,10 +3,11 @@ using Pigeon.Core;
 using Pigeon.Persistence.Sqlite;
 using Pigeon.Persistence.Sqlite.Serialization;
 using Pigeon.Simulation;
+using Pigeon.World.Abstractions;
 
 namespace Pigeon.Persistence.Tests;
 
-/// <summary>Хранение личности, потребностей, настроения и входа с данными (M1.1).</summary>
+/// <summary>Хранение личности, потребностей, настроения, намерений и входов с данными (M1.1, M1.2).</summary>
 public sealed class PigeonDomainStorageTests
 {
     private const ulong Seed = 0x5EED_0016UL;
@@ -40,6 +41,69 @@ public sealed class PigeonDomainStorageTests
         Assert.Equal(SimulationSnapshot.CurrentFormatVersion, restored.FormatVersion);
         Assert.Equal(snapshot.Pigeon, restored.Pigeon);
         Assert.Equal(snapshot.Pending, restored.Pending);
+    }
+
+    private static readonly Affordance[] World =
+    [
+        new(new AffordanceId(7), new PlaceKey("poi:клумба"), AffordanceKind.PointOfInterest, 0.6, 0.15, TimeSpan.FromSeconds(12.5)),
+        new(new AffordanceId(8), new PlaceKey("cursor"), AffordanceKind.AttentionTarget, 0.7, 0.2, TimeSpan.FromSeconds(8)),
+    ];
+
+    [Fact]
+    public async Task ObservedWorld_RoundTripsThroughTheJournal()
+    {
+        using var db = new TestDatabase();
+        var store = await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
+        JournalEntry[] entries = [new(1, new AffordancesObserved(World)), new(30, new AffordancesObserved([]))];
+
+        await store.AppendAsync(Pet, 0, entries, TestContext.Current.CancellationToken);
+        var read = await store.ReadAsync(Pet, 0, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(entries, read);
+        Assert.Equal(World, Assert.IsType<AffordancesObserved>(read[0].Event).Affordances);
+    }
+
+    [Fact]
+    public void Snapshot_RoundTripsIntentPlanCooldownsAndWorld()
+    {
+        var simulation = new PigeonSimulation(Seed, SimulationOptions.Desktop, Personality.Average with { Curiosity = 95 });
+        simulation.Submit(new AffordancesObserved(World));
+        simulation.RunTicks(9_000);
+        var snapshot = simulation.CreateSnapshot();
+
+        var restored = SnapshotSerializer.Deserialize(SnapshotSerializer.Serialize(snapshot));
+
+        Assert.Equal(snapshot.Pigeon, restored.Pigeon);
+        Assert.NotEmpty(snapshot.Cooldowns);
+        Assert.Equal(snapshot.Cooldowns, restored.Cooldowns);
+        Assert.Equal(World, restored.Affordances);
+        var original = PigeonSimulation.Restore(snapshot);
+        var reloaded = PigeonSimulation.Restore(restored);
+        original.RunTicks(3_000);
+        reloaded.RunTicks(3_000);
+        Assert.Equal(original.ComputeStateHash(), reloaded.ComputeStateHash());
+    }
+
+    [Fact]
+    public void VersionTwoSnapshot_EndsItsIntentOnTheNextTick()
+    {
+        const string v2 = """
+            {"formatVersion":2,"seed":7,"stepTicks":1000000,"maxTicksPerAdvance":50,"decisionIntervalTicks":30,
+             "tick":500,"accumulatedTicks":0,"fatigue":0.4,"intent":1,"intentStartedTick":450,
+             "randomStreams":[],"journalLength":0,"pending":[],
+             "personality":{"curiosity":50,"playfulness":50,"sociability":50,"boldness":50,"calmness":50,"independence":50,"energy":50},
+             "boredom":0.2,"attention":0.3,"mood":{"valence":0.1,"arousal":0.4,"stress":0}}
+            """;
+
+        var snapshot = SnapshotSerializer.Deserialize(v2);
+        var simulation = PigeonSimulation.Restore(snapshot);
+        simulation.RunTicks(1);
+
+        Assert.Equal(SimulationSnapshot.CurrentFormatVersion, snapshot.FormatVersion);
+        Assert.Equal(500, snapshot.Pigeon.IntentEndsTick);
+        Assert.Empty(snapshot.Cooldowns);
+        Assert.Empty(snapshot.Affordances);
+        Assert.Equal(501, simulation.Pigeon.IntentStartedTick);
     }
 
     [Fact]

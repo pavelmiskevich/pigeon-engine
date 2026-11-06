@@ -2,6 +2,7 @@ using System.Text.Json;
 using Pigeon.Common.Randomness;
 using Pigeon.Core;
 using Pigeon.Simulation;
+using Pigeon.World.Abstractions;
 
 namespace Pigeon.Persistence.Sqlite.Serialization;
 
@@ -53,7 +54,11 @@ public static class SnapshotSerializer
             ToDto(snapshot.Pigeon.Personality),
             snapshot.Pigeon.Needs.Boredom,
             snapshot.Pigeon.Needs.Attention,
-            new MoodDto(snapshot.Pigeon.Mood.Valence, snapshot.Pigeon.Mood.Arousal, snapshot.Pigeon.Mood.Stress));
+            new MoodDto(snapshot.Pigeon.Mood.Valence, snapshot.Pigeon.Mood.Arousal, snapshot.Pigeon.Mood.Stress),
+            snapshot.Pigeon.IntentTarget?.Value,
+            snapshot.Pigeon.IntentEndsTick,
+            [.. snapshot.Cooldowns.Select(c => new CooldownDto((int)c.Key, c.Value))],
+            ToDto(snapshot.Affordances));
 
     private static SimulationSnapshot FromDto(SnapshotDto dto)
     {
@@ -69,27 +74,58 @@ public static class SnapshotSerializer
                 streams, dto.JournalLength, pending);
         }
 
-        PigeonStateSnapshot pigeon = default;
-        if (dto.FormatVersion == SimulationSnapshot.CurrentFormatVersion)
+        if (dto.FormatVersion is not (2 or SimulationSnapshot.CurrentFormatVersion))
         {
-            if (dto.Personality is not { } p || dto.Boredom is not { } boredom || dto.Attention is not { } attention
-                || dto.Mood is not { } mood)
-            {
-                throw new InvalidDataException("В снимке нет личности, потребностей или настроения.");
-            }
-
-            pigeon = new PigeonStateSnapshot(
-                new Personality(p.Curiosity, p.Playfulness, p.Sociability, p.Boldness, p.Calmness, p.Independence, p.Energy),
-                new Needs(dto.Fatigue, boredom, attention),
-                new Mood(mood.Valence, mood.Arousal, mood.Stress),
-                (IntentKind)dto.Intent,
-                dto.IntentStartedTick);
+            // Неизвестный формат отклоняет SimulationSnapshot.Validate при восстановлении.
+            return new SimulationSnapshot(
+                dto.FormatVersion, dto.Seed, options, dto.Tick, accumulated, default, streams, dto.JournalLength, pending, [], []);
         }
 
-        // Неизвестный формат отклоняет SimulationSnapshot.Validate при восстановлении.
+        if (dto.Personality is not { } p || dto.Boredom is not { } boredom || dto.Attention is not { } attention
+            || dto.Mood is not { } mood)
+        {
+            throw new InvalidDataException("В снимке нет личности, потребностей или настроения.");
+        }
+
+        // В формате 2 у намерения не было цели и плана: оно завершается на следующем тике.
+        var pigeon = new PigeonStateSnapshot(
+            new Personality(p.Curiosity, p.Playfulness, p.Sociability, p.Boldness, p.Calmness, p.Independence, p.Energy),
+            new Needs(dto.Fatigue, boredom, attention),
+            new Mood(mood.Valence, mood.Arousal, mood.Stress),
+            (IntentKind)dto.Intent,
+            dto.IntentStartedTick,
+            dto.IntentTarget is { } target ? new AffordanceId(target) : null,
+            dto.IntentEndsTick ?? Math.Max(dto.Tick, dto.IntentStartedTick));
+
         return new SimulationSnapshot(
-            dto.FormatVersion, dto.Seed, options, dto.Tick, accumulated, pigeon, streams, dto.JournalLength, pending);
+            SimulationSnapshot.CurrentFormatVersion,
+            dto.Seed,
+            options,
+            dto.Tick,
+            accumulated,
+            pigeon,
+            streams,
+            dto.JournalLength,
+            pending,
+            [.. (dto.Cooldowns ?? []).Select(c => KeyValuePair.Create((IntentKind)c.Intent, c.UntilTick))],
+            FromDto(dto.Affordances ?? []));
     }
+
+    internal static string SerializeAffordances(IReadOnlyList<Affordance> affordances) =>
+        JsonSerializer.Serialize(ToDto(affordances), PersistenceJsonContext.Default.IReadOnlyListAffordanceDto);
+
+    internal static IReadOnlyList<Affordance> DeserializeAffordances(string json) =>
+        FromDto(JsonSerializer.Deserialize(json, PersistenceJsonContext.Default.IReadOnlyListAffordanceDto)
+            ?? throw new InvalidDataException("Пустой список affordances."));
+
+    private static List<AffordanceDto> ToDto(IReadOnlyList<Affordance> affordances) =>
+        [.. affordances.Select(a => new AffordanceDto(
+            a.Id.Value, a.PlaceKey.Value, (int)a.Kind, a.Attractiveness, a.Risk, a.TravelCost.Ticks))];
+
+    private static List<Affordance> FromDto(IReadOnlyList<AffordanceDto> affordances) =>
+        [.. affordances.Select(a => new Affordance(
+            new AffordanceId(a.Id), new PlaceKey(a.PlaceKey), (AffordanceKind)a.Kind, a.Attractiveness, a.Risk,
+            TimeSpan.FromTicks(a.TravelCostTicks)))];
 
     private static PersonalityDto ToDto(Personality p) =>
         new(p.Curiosity, p.Playfulness, p.Sociability, p.Boldness, p.Calmness, p.Independence, p.Energy);

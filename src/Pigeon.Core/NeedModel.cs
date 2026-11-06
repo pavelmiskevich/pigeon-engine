@@ -46,19 +46,18 @@ public sealed record NeedModel
     /// </summary>
     public double PressureOf(double urgency) => Math.Max(0.0, urgency - ComfortBelow) / (1.0 - ComfortBelow);
 
-    /// <summary>Потребности через <paramref name="seconds"/> секунд жизни; в отдыхе усталость снижается.</summary>
-    public Needs Advance(Needs needs, Personality personality, bool resting, double seconds)
+    /// <summary>
+    /// Потребности через <paramref name="seconds"/> секунд занятия с эффектами
+    /// <paramref name="effects"/> (см. <see cref="NeedEffects"/>).
+    /// </summary>
+    public Needs Advance(Needs needs, Personality personality, NeedEffects effects, double seconds)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(seconds);
 
-        var fatigueDelta = resting
-            ? -FatigueRecoveryPerSecond * seconds
-            : FatigueGrowthPerSecond * FatigueFactor(personality) * seconds;
-
         return needs
-            .Change(NeedKind.Fatigue, fatigueDelta)
-            .Change(NeedKind.Boredom, BoredomGrowthPerSecond * BoredomFactor(personality) * seconds)
-            .Change(NeedKind.Attention, AttentionGrowthPerSecond * AttentionFactor(personality) * seconds);
+            .Change(NeedKind.Fatigue, Delta(effects.Fatigue, FatigueGrowthPerSecond * FatigueFactor(personality), FatigueRecoveryPerSecond) * seconds)
+            .Change(NeedKind.Boredom, Delta(effects.Boredom, BoredomGrowthPerSecond * BoredomFactor(personality), BoredomGrowthPerSecond) * seconds)
+            .Change(NeedKind.Attention, Delta(effects.Attention, AttentionGrowthPerSecond * AttentionFactor(personality), AttentionGrowthPerSecond) * seconds);
     }
 
     /// <summary>
@@ -84,6 +83,9 @@ public sealed record NeedModel
         var counted = away < AbsenceCatchUpLimit ? away : AbsenceCatchUpLimit;
         return counted.Ticks / TimeSpan.TicksPerSecond;
     }
+
+    private static double Delta(double multiplier, double growth, double relief) =>
+        multiplier >= 0.0 ? multiplier * growth : multiplier * relief;
 
     private double Capped(double urgency, double growth) =>
         urgency >= UrgentAbove ? urgency : Math.Min(urgency + growth, UrgentAbove);

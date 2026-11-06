@@ -21,6 +21,7 @@
     <Project Path="src/Pigeon.World.Desktop/Pigeon.World.Desktop.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Pigeon.AI.Tests/Pigeon.AI.Tests.csproj" />
     <Project Path="tests/Pigeon.Architecture.Tests/Pigeon.Architecture.Tests.csproj" />
     <Project Path="tests/Pigeon.Common.Tests/Pigeon.Common.Tests.csproj" />
     <Project Path="tests/Pigeon.Core.Tests/Pigeon.Core.Tests.csproj" />

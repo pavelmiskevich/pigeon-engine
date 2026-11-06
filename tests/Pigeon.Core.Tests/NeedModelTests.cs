@@ -22,7 +22,7 @@ public sealed class NeedModelTests
     [Fact]
     public void ActivePigeon_GetsTiredInAboutHalfAnHour()
     {
-        var needs = Run(Needs.None, Average, resting: false, TimeSpan.FromMinutes(28));
+        var needs = Run(Needs.None, Average, NeedEffects.Active, TimeSpan.FromMinutes(28));
 
         Assert.Equal(0.7, needs.Fatigue, 1e-6);
         Assert.Equal(NeedLevel.Want, Model.LevelOf(needs.Attention));
@@ -34,7 +34,7 @@ public sealed class NeedModelTests
     {
         var tired = new Needs(0.8, 0.2, 0.2);
 
-        var rested = Run(tired, Average, resting: true, TimeSpan.FromMinutes(3));
+        var rested = Run(tired, Average, NeedEffects.Resting, TimeSpan.FromMinutes(3));
 
         Assert.Equal(0.3, rested.Fatigue, 1e-6);
         Assert.True(rested.Boredom > tired.Boredom);
@@ -44,8 +44,8 @@ public sealed class NeedModelTests
     [Fact]
     public void Urgency_StaysWithinZeroToOne()
     {
-        var needs = Run(Needs.None, Average, resting: false, TimeSpan.FromHours(3));
-        var rested = Run(needs, Average, resting: true, TimeSpan.FromHours(1));
+        var needs = Run(Needs.None, Average, NeedEffects.Active, TimeSpan.FromHours(3));
+        var rested = Run(needs, Average, NeedEffects.Resting, TimeSpan.FromHours(1));
 
         Assert.Equal(new Needs(1.0, 1.0, 1.0), needs);
         Assert.Equal(0.0, rested.Fatigue);
@@ -55,12 +55,12 @@ public sealed class NeedModelTests
     public void Traits_ChangeHowFastNeedsGrow()
     {
         var minute = TimeSpan.FromMinutes(1);
-        var energetic = Run(Needs.None, Average with { Energy = 100 }, resting: false, minute);
-        var sluggish = Run(Needs.None, Average with { Energy = 0 }, resting: false, minute);
-        var curious = Run(Needs.None, Average with { Curiosity = 100 }, resting: false, minute);
-        var social = Run(Needs.None, Average with { Sociability = 100 }, resting: false, minute);
-        var independent = Run(Needs.None, Average with { Independence = 100 }, resting: false, minute);
-        var average = Run(Needs.None, Average, resting: false, minute);
+        var energetic = Run(Needs.None, Average with { Energy = 100 }, NeedEffects.Active, minute);
+        var sluggish = Run(Needs.None, Average with { Energy = 0 }, NeedEffects.Active, minute);
+        var curious = Run(Needs.None, Average with { Curiosity = 100 }, NeedEffects.Active, minute);
+        var social = Run(Needs.None, Average with { Sociability = 100 }, NeedEffects.Active, minute);
+        var independent = Run(Needs.None, Average with { Independence = 100 }, NeedEffects.Active, minute);
+        var average = Run(Needs.None, Average, NeedEffects.Active, minute);
 
         Assert.Equal(3.0, sluggish.Fatigue / energetic.Fatigue, 1e-6);
         Assert.Equal(1.5, curious.Boredom / average.Boredom, 1e-6);
@@ -117,9 +117,27 @@ public sealed class NeedModelTests
     }
 
     [Fact]
+    public void Effects_ScaleGrowthAndRelief()
+    {
+        var start = new Needs(0.5, 0.5, 0.5);
+        var minute = TimeSpan.FromMinutes(1);
+
+        var flying = Run(start, Average, new NeedEffects(2.0, 1.0, 1.0), minute);
+        var playing = Run(start, Average, new NeedEffects(1.0, -3.0, 1.0), minute);
+        var asleep = Run(start, Average, new NeedEffects(-1.5, 0.0, 0.0), minute);
+        var walking = Run(start, Average, NeedEffects.Active, minute);
+
+        Assert.Equal(2.0, (flying.Fatigue - 0.5) / (walking.Fatigue - 0.5), 1e-6);
+        Assert.Equal(0.5 - 3.0 * 60 / 1_200, playing.Boredom, 1e-9);
+        Assert.Equal(0.5 - 1.5 * 60 / 360, asleep.Fatigue, 1e-9);
+        Assert.Equal(0.5, asleep.Boredom);
+        Assert.Equal(0.5, asleep.Attention);
+    }
+
+    [Fact]
     public void NegativeTime_IsRejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => Model.Advance(Needs.None, Average, resting: false, -1.0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Model.Advance(Needs.None, Average, NeedEffects.Active, -1.0));
         Assert.Throws<ArgumentOutOfRangeException>(() => Model.CatchUpAbsence(Needs.None, Average, TimeSpan.FromSeconds(-1)));
     }
 
@@ -139,12 +157,12 @@ public sealed class NeedModelTests
         Assert.Throws<ArgumentException>(() => new Needs(0.0, 0.0, double.NaN).Validate());
     }
 
-    private static Needs Run(Needs needs, Personality personality, bool resting, TimeSpan duration)
+    private static Needs Run(Needs needs, Personality personality, NeedEffects effects, TimeSpan duration)
     {
         var steps = (long)Math.Round(duration.TotalSeconds / Step);
         for (long i = 0; i < steps; i++)
         {
-            needs = Model.Advance(needs, personality, resting, Step);
+            needs = Model.Advance(needs, personality, effects, Step);
         }
 
         return needs;
