@@ -21,6 +21,6 @@ public sealed class RestOrWanderPolicy
 
         var threshold = pigeon.Intent == IntentKind.Rest ? StopRestBelow : StartRestAbove;
         var jitter = (random.NextDouble() - 0.5) * JitterAmplitude;
-        return pigeon.Fatigue + jitter > threshold ? IntentKind.Rest : IntentKind.Wander;
+        return pigeon.Needs.Fatigue + jitter > threshold ? IntentKind.Rest : IntentKind.Wander;
     }
 }

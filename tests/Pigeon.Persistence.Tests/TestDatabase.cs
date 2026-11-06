@@ -46,6 +46,21 @@ internal sealed class TestDatabase : IDisposable
         return Convert.ToString(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
     }
 
+    /// <summary>Создаёт базу из SQL-фикстуры в каталоге <c>Fixtures</c>.</summary>
+    public static void CreateFromFixture(string databasePath, string fixture)
+    {
+        var sql = File.ReadAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture));
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Pooling = false,
+        }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
     public void Dispose()
     {
         try

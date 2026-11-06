@@ -23,7 +23,49 @@ public sealed record SimulationSnapshot(
     long JournalLength,
     IReadOnlyList<JournalEntry> Pending)
 {
-    public const int CurrentFormatVersion = 1;
+    /// <summary>
+    /// 2 — личность, три потребности и настроение (M1.1); 1 — только усталость (S0.6), читается
+    /// через <see cref="FromVersion1"/>.
+    /// </summary>
+    public const int CurrentFormatVersion = 2;
+
+    /// <summary>
+    /// Снимок формата 1 в текущем формате. В первом формате личности ещё не было, поэтому она
+    /// выводится из seed так же, как при рождении; скука и потребность во внимании начинаются с
+    /// нуля, настроение — с базовой точки.
+    /// </summary>
+    public static SimulationSnapshot FromVersion1(
+        ulong seed,
+        SimulationOptions options,
+        long tick,
+        TimeSpan accumulated,
+        double fatigue,
+        IntentKind intent,
+        long intentStartedTick,
+        IReadOnlyList<KeyValuePair<string, Pcg32State>> randomStreams,
+        long journalLength,
+        IReadOnlyList<JournalEntry> pending)
+    {
+        var streams = Common.Randomness.RandomStreams.Restore(seed, randomStreams);
+        var born = PigeonSimulation.Born(streams);
+        var pigeon = new PigeonStateSnapshot(
+            born.Personality,
+            Needs.None with { Fatigue = fatigue },
+            born.Mood,
+            intent,
+            intentStartedTick);
+
+        return new SimulationSnapshot(
+            CurrentFormatVersion,
+            seed,
+            options,
+            tick,
+            accumulated,
+            pigeon,
+            streams.Snapshot(),
+            journalLength,
+            pending);
+    }
 
     public void Validate()
     {

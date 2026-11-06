@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Pigeon.Core;
 using Pigeon.Persistence.Sqlite;
 
@@ -25,7 +24,7 @@ public sealed class SchemaMigratorTests
     public async Task VersionOneFixture_IsMigratedWithoutLosingData()
     {
         using var db = new TestDatabase();
-        CreateFromFixture(db.Path, "schema-v1.sql");
+        TestDatabase.CreateFromFixture(db.Path, "schema-v1.sql");
 
         var store = await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
 
@@ -61,19 +60,5 @@ public sealed class SchemaMigratorTests
 
         await Assert.ThrowsAsync<NotSupportedException>(
             () => new SqliteSchemaMigrator(db.Path).MigrateAsync(TestContext.Current.CancellationToken).AsTask());
-    }
-
-    private static void CreateFromFixture(string databasePath, string fixture)
-    {
-        var sql = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture));
-        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Pooling = false,
-        }.ToString());
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
     }
 }

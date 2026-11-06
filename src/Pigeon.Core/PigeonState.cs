@@ -3,13 +3,27 @@ using Pigeon.Common.Hashing;
 namespace Pigeon.Core;
 
 /// <summary>
-/// Состояние голубя. В MVP-0 — одна потребность и текущее намерение (ТЗ §5.1, §6.1);
-/// остальные части домена добавляются в MVP-1.
+/// Изменяемое состояние голубя в симуляции (ТЗ §5.1): личность, потребности, настроение и
+/// текущее намерение. Identity хранится отдельно (<see cref="PetIdentity"/>), остальные части
+/// домена добавляются по мере MVP.
 /// </summary>
 public sealed class PigeonState
 {
-    /// <summary>Срочность усталости: 0 — бодр, 1 — валится с лап (ТЗ §6.1).</summary>
-    public double Fatigue { get; private set; }
+    public PigeonState(Personality personality, Mood mood)
+    {
+        personality.Validate();
+        mood.Validate();
+
+        Personality = personality;
+        Mood = mood;
+    }
+
+    /// <summary>Трейты; задаются при рождении и не меняются (ТЗ §5.2, Q6).</summary>
+    public Personality Personality { get; }
+
+    public Needs Needs { get; private set; } = Needs.None;
+
+    public Mood Mood { get; private set; }
 
     public IntentKind Intent { get; private set; } = IntentKind.Wander;
 
@@ -23,22 +37,29 @@ public sealed class PigeonState
             throw new ArgumentException($"Неизвестное намерение в снимке: {(int)snapshot.Intent}.", nameof(snapshot));
         }
 
-        if (snapshot.Fatigue is < 0.0 or > 1.0 || double.IsNaN(snapshot.Fatigue))
-        {
-            throw new ArgumentException($"Усталость в снимке вне диапазона 0..1: {snapshot.Fatigue}.", nameof(snapshot));
-        }
+        snapshot.Needs.Validate();
 
-        return new PigeonState
+        return new PigeonState(snapshot.Personality, snapshot.Mood)
         {
-            Fatigue = snapshot.Fatigue,
+            Needs = snapshot.Needs,
             Intent = snapshot.Intent,
             IntentStartedTick = snapshot.IntentStartedTick,
         };
     }
 
-    public PigeonStateSnapshot ToSnapshot() => new(Fatigue, Intent, IntentStartedTick);
+    public PigeonStateSnapshot ToSnapshot() => new(Personality, Needs, Mood, Intent, IntentStartedTick);
 
-    public void ChangeFatigue(double delta) => Fatigue = Math.Clamp(Fatigue + delta, 0.0, 1.0);
+    public void SetNeeds(Needs needs)
+    {
+        needs.Validate();
+        Needs = needs;
+    }
+
+    public void SetMood(Mood mood)
+    {
+        mood.Validate();
+        Mood = mood;
+    }
 
     public void StartIntent(IntentKind intent, long tick)
     {
@@ -50,7 +71,9 @@ public sealed class PigeonState
     {
         ArgumentNullException.ThrowIfNull(hasher);
 
-        hasher.Add(Fatigue);
+        Personality.AddTo(hasher);
+        Needs.AddTo(hasher);
+        Mood.AddTo(hasher);
         hasher.Add((int)Intent);
         hasher.Add(IntentStartedTick);
     }

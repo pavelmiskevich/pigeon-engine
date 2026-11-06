@@ -133,14 +133,15 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
         using var connection = SqliteConnections.Open(_databasePath);
         using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT tick, type FROM journal WHERE pet_id = $pet AND position >= $from ORDER BY position;";
+            "SELECT tick, type, payload FROM journal WHERE pet_id = $pet AND position >= $from ORDER BY position;";
         command.Parameters.AddWithValue("$pet", petId.ToString());
         command.Parameters.AddWithValue("$from", fromPosition);
 
         using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            yield return new JournalEntry(reader.GetInt64(0), InputEventCodec.Decode(reader.GetString(1)));
+            var payload = reader.IsDBNull(2) ? null : reader.GetString(2);
+            yield return new JournalEntry(reader.GetInt64(0), InputEventCodec.Decode(reader.GetString(1), payload));
         }
     }
 
@@ -161,17 +162,20 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
-            "INSERT INTO journal (pet_id, position, tick, type) VALUES ($pet, $position, $tick, $type);";
+            "INSERT INTO journal (pet_id, position, tick, type, payload) VALUES ($pet, $position, $tick, $type, $payload);";
         var pet = command.Parameters.AddWithValue("$pet", petId.ToString());
         var position = command.Parameters.Add("$position", SqliteType.Integer);
         var tick = command.Parameters.Add("$tick", SqliteType.Integer);
         var type = command.Parameters.Add("$type", SqliteType.Text);
+        var payload = command.Parameters.Add("$payload", SqliteType.Text);
 
         for (var i = 0; i < entries.Count; i++)
         {
             position.Value = firstPosition + i;
             tick.Value = entries[i].Tick;
-            type.Value = InputEventCodec.Encode(entries[i].Event);
+            var encoded = InputEventCodec.Encode(entries[i].Event);
+            type.Value = encoded.Type;
+            payload.Value = (object?)encoded.Payload ?? DBNull.Value;
             command.ExecuteNonQuery();
         }
     }

@@ -19,9 +19,20 @@ public sealed class PigeonSimulation
 {
     public const string DecisionStreamName = "ai.decision";
 
-    internal const double WanderFatiguePerTick = 0.002;
-    internal const double RestRecoveryPerTick = 0.004;
+    /// <summary>Поток, из которого при рождении берутся трейты (ТЗ §5.2).</summary>
+    public const string PersonalityStreamName = "pigeon.personality";
+
+    // Тычок: голубь вздрагивает, получает внимание и новый стимул; разбуженный — недоволен.
     internal const double PokeFatigue = 0.05;
+    internal const double PokeAttentionRelief = 0.25;
+    internal const double PokeBoredomRelief = 0.1;
+    internal const double PokeValence = 0.1;
+    internal const double PokeArousal = 0.15;
+    internal const double WokenValence = -0.15;
+    internal const double WokenArousal = 0.25;
+
+    private static readonly NeedModel NeedRules = NeedModel.Default;
+    private static readonly MoodModel MoodRules = MoodModel.Default;
 
     private readonly SimulationOptions _options;
     private readonly FixedStepScheduler _scheduler;
@@ -31,9 +42,21 @@ public sealed class PigeonSimulation
     private readonly Queue<JournalEntry> _pending = new();
     private readonly List<JournalEntry> _journal = [];
     private readonly long _journalOffset;
+    private readonly double _stepSeconds;
 
+    /// <summary>Рождение голубя: трейты выводятся из <paramref name="seed"/>, настроение — в базовой точке.</summary>
     public PigeonSimulation(ulong seed, SimulationOptions options)
-        : this(options, CreateScheduler(options), new RandomStreams(seed), new PigeonState(), tick: 0, journalOffset: 0)
+        : this(options, CreateScheduler(options), new RandomStreams(seed), tick: 0, journalOffset: 0)
+    {
+    }
+
+    private PigeonSimulation(
+        SimulationOptions options,
+        FixedStepScheduler scheduler,
+        RandomStreams random,
+        long tick,
+        long journalOffset)
+        : this(options, scheduler, random, Born(random), tick, journalOffset)
     {
     }
 
@@ -50,6 +73,7 @@ public sealed class PigeonSimulation
         _random = random;
         _decisionRandom = _random.Get(DecisionStreamName);
         _journalOffset = journalOffset;
+        _stepSeconds = options.Step.Ticks / (double)TimeSpan.TicksPerSecond;
         Pigeon = pigeon;
         Tick = tick;
     }
@@ -62,6 +86,9 @@ public sealed class PigeonSimulation
     public long Tick { get; private set; }
 
     public PigeonState Pigeon { get; }
+
+    /// <summary>Метка настроения сейчас (ТЗ §7) — для анимаций, UI и контекста провайдеров.</summary>
+    public MoodLabel MoodLabel => MoodRules.Classify(Pigeon.Mood, Pigeon.Needs, NeedRules);
 
     /// <summary>
     /// Применённые входы в порядке применения — с начала симуляции или с момента восстановления
@@ -186,6 +213,12 @@ public sealed class PigeonSimulation
         return new FixedStepScheduler(options);
     }
 
+    internal static PigeonState Born(RandomStreams random)
+    {
+        var personality = Personality.Generate(random.Get(PersonalityStreamName));
+        return new PigeonState(personality, MoodRules.Baseline(personality));
+    }
+
     private void ExecuteTick()
     {
         var tick = Tick + 1;
@@ -198,7 +231,10 @@ public sealed class PigeonSimulation
             _journal.Add(applied);
         }
 
-        Pigeon.ChangeFatigue(Pigeon.Intent == IntentKind.Rest ? -RestRecoveryPerTick : WanderFatiguePerTick);
+        var resting = Pigeon.Intent == IntentKind.Rest;
+        var needs = NeedRules.Advance(Pigeon.Needs, Pigeon.Personality, resting, _stepSeconds);
+        Pigeon.SetNeeds(needs);
+        Pigeon.SetMood(MoodRules.Advance(Pigeon.Mood, Pigeon.Personality, needs, NeedRules, _stepSeconds));
 
         if (tick % _options.DecisionIntervalTicks == 0)
         {
@@ -217,12 +253,25 @@ public sealed class PigeonSimulation
         switch (inputEvent)
         {
             case UserPoked:
-                Pigeon.ChangeFatigue(PokeFatigue);
-                if (Pigeon.Intent == IntentKind.Rest)
+                var woken = Pigeon.Intent == IntentKind.Rest;
+                Pigeon.SetNeeds(Pigeon.Needs
+                    .Change(NeedKind.Fatigue, PokeFatigue)
+                    .Change(NeedKind.Attention, -PokeAttentionRelief)
+                    .Change(NeedKind.Boredom, -PokeBoredomRelief));
+                Pigeon.SetMood(woken
+                    ? Pigeon.Mood.Nudge(WokenValence, WokenArousal)
+                    : Pigeon.Mood.Nudge(PokeValence, PokeArousal));
+                if (woken)
                 {
                     Pigeon.StartIntent(IntentKind.Wander, tick);
                 }
 
+                break;
+            case AbsenceEnded absence:
+                var seconds = NeedRules.AbsenceSeconds(absence.Duration);
+                Pigeon.SetNeeds(NeedRules.CatchUpAbsence(Pigeon.Needs, Pigeon.Personality, absence.Duration));
+                var rested = MoodRules.CatchUpAbsence(Pigeon.Mood, Pigeon.Personality, seconds);
+                Pigeon.SetMood(MoodRules.WelcomeBack(rested, Pigeon.Personality, absence.Duration));
                 break;
             default:
                 throw new NotSupportedException($"Неизвестный вход симуляции: {inputEvent.GetType().Name}.");
