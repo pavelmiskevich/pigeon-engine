@@ -1,6 +1,7 @@
 using Pigeon.Common.Randomness;
 using Pigeon.Core;
 using Pigeon.World.Abstractions;
+using Pigeon.World.Desktop.Interaction;
 using Pigeon.World.Desktop.Screen;
 
 namespace Pigeon.World.Desktop.Locomotion;
@@ -17,6 +18,9 @@ public enum Gait
 
     /// <summary>Улетел за край экрана и ещё не прилетел (ТЗ §10.1) или мониторов нет.</summary>
     Hidden = 6,
+
+    /// <summary>Голубя несут курсором (ТЗ §11.8): он машет крыльями.</summary>
+    Held = 7,
 }
 
 /// <summary>
@@ -36,7 +40,7 @@ public readonly record struct PigeonBody(
     double Walked,
     TimeSpan GaitStarted)
 {
-    public bool IsAirborne => Gait is Gait.Fly or Gait.Land or Gait.Hidden || (Gait == Gait.TakeOff);
+    public bool IsAirborne => Gait is Gait.Fly or Gait.Land or Gait.Hidden or Gait.TakeOff or Gait.Held;
 }
 
 /// <summary>Что локомоция сообщает хосту.</summary>
@@ -74,11 +78,27 @@ public sealed record LocomotionSettings(
 
     /// <summary>Сколько голубь за краем экрана, перелетая на несмежный монитор.</summary>
     public TimeSpan Offscreen { get; init; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>Как близко к курсору голубь подходит, когда идёт к нему (ТЗ §8.2), логические пиксели.</summary>
+    public double CursorKeep { get; init; } = 45;
+
+    /// <summary>Дальше этого (логические пиксели) голубь к курсору не идёт, а подлетает.</summary>
+    public double CursorFlyFrom { get; init; } = 420;
+
+    /// <summary>На сколько голубь отлетает от курсора, логические пиксели.</summary>
+    public double FleeDistance { get; init; } = 380;
+
+    /// <summary>Как часто играющий у курсора голубь подпрыгивает.</summary>
+    public TimeSpan PlayHopEvery { get; init; } = TimeSpan.FromSeconds(1.2);
+
+    /// <summary>Как часто ищущий внимания голубь переминается у курсора.</summary>
+    public TimeSpan AttentionHopEvery { get; init; } = TimeSpan.FromSeconds(4);
 }
 
 /// <summary>
 /// Локомоция Desktop L2 (ТЗ §8.1, §10.1, M1.5): исполняет намерения на поверхностях экрана —
-/// ходьба по полу, подскоки, перелёты между мониторами — и сообщает результат.
+/// ходьба по полу, подскоки, перелёты между мониторами — и сообщает результат. Реакции на курсор
+/// и «голубь в руках» — M1.6 (ТЗ §8.2, §11.8).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -108,6 +128,7 @@ public sealed class DesktopLocomotion
     private PlaceKey? _surface;
     private (IntentKind Intent, AffordanceId? Target, long Started)? _executing;
     private (IntentKind Intent, AffordanceId? Target, long Started)? _requested;
+    private (double X, double Y) _grip;
 
     public DesktopLocomotion(DesktopWorld world, IRandomSource random, LocomotionSettings? settings = null)
     {
@@ -125,6 +146,85 @@ public sealed class DesktopLocomotion
     /// <summary>Голубь движется — кадры нужны с частотой экрана.</summary>
     public bool IsMoving => Body.Gait is not (Gait.Stand or Gait.Hidden);
 
+    /// <summary>Голубя несут курсором.</summary>
+    public bool IsHeld => Body.Gait == Gait.Held;
+
+    /// <summary>
+    /// Пользователь взял голубя в точке (<paramref name="x"/>, <paramref name="y"/>): движение и
+    /// намерение прерываются, голубь висит в руке и машет крыльями. Невидимого голубя не взять.
+    /// </summary>
+    public void PickUp(double x, double y, TimeSpan now)
+    {
+        if (Body.Gait == Gait.Hidden)
+        {
+            return;
+        }
+
+        Abort();
+        _surface = null;
+        _grip = (Body.X - x, Body.Y - y);
+        SetGait(Gait.Held, now);
+    }
+
+    /// <summary>Несут: голубь следует за курсором, тень — на поверхности под ним.</summary>
+    public void Carry(double x, double y)
+    {
+        if (!IsHeld)
+        {
+            return;
+        }
+
+        var (bodyX, bodyY) = (x + _grip.X, y + _grip.Y);
+        Body = Body with
+        {
+            FacingLeft = bodyX < Body.X || (bodyX == Body.X && Body.FacingLeft),
+            X = bodyX,
+            Y = bodyY,
+            GroundY = _world.SurfaceBelow(bodyX, bodyY)?.Y ?? Body.GroundY,
+            Monitor = _world.MonitorAt(bodyX, bodyY - 1)?.Key ?? Body.Monitor,
+        };
+    }
+
+    /// <summary>
+    /// Отпустили (ТЗ §11.8): голубь падает на поверхность под собой, а если её нет — отпустили
+    /// ниже пола или вне мониторов — на поверхность своего монитора, и садится.
+    /// </summary>
+    public void Drop(TimeSpan now)
+    {
+        if (!IsHeld)
+        {
+            return;
+        }
+
+        var monitor = _world.MonitorAt(Body.X, Body.Y - 1)?.Key ?? Body.Monitor ?? _world.PigeonMonitor;
+        var landing = _world.SurfaceBelow(Body.X, Body.Y) ?? (monitor is { } key ? _world.HomeSurface(key) : null);
+        if (landing is null)
+        {
+            Body = Body with { Gait = Gait.Hidden };
+            return;
+        }
+
+        Fall(landing, now, fromTop: false);
+    }
+
+    /// <summary>Тычок (ТЗ §11.8): стоящий или идущий голубь вздрагивает — подскакивает — и продолжает.</summary>
+    public void Flinch()
+    {
+        if (!Body.IsAirborne && _step is not (FlightStep or HopStep))
+        {
+            Interject(new HopStep());
+        }
+    }
+
+    /// <summary>Голубя гладят: он замирает на <paramref name="duration"/>, потом продолжает.</summary>
+    public void Settle(TimeSpan duration)
+    {
+        if (!Body.IsAirborne && _step is not FlightStep)
+        {
+            Interject(new PauseStep(duration));
+        }
+    }
+
     /// <summary>
     /// Текущее намерение симуляции; хост вызывает это каждый кадр. Новое намерение планируется
     /// сразу, а в воздухе — после посадки.
@@ -139,7 +239,7 @@ public sealed class DesktopLocomotion
         var dt = Math.Max(0, (now - _lastUpdate).TotalSeconds);
         _lastUpdate = now;
 
-        if (Body.Gait == Gait.Hidden && _step is null && !EnsurePlaced(now))
+        if (IsHeld || (Body.Gait == Gait.Hidden && _step is null && !EnsurePlaced(now)))
         {
             return events;
         }
@@ -286,8 +386,16 @@ public sealed class DesktopLocomotion
                 QueueFlight(home, home.Left + ((home.Right - home.Left) * Proportion()));
                 Report(ActionOutcome.Completed, null);
                 break;
+            case IntentKind.Observe or IntentKind.FollowTarget or IntentKind.SeekAttention or IntentKind.Play
+                when target == CursorPresence.Id:
+                _steps.Enqueue(new CursorStep(intent));
+                break;
+            case IntentKind.Flee when target == CursorPresence.Id:
+                QueueFlee();
+                Report(ActionOutcome.Completed, null);
+                break;
             default:
-                // Отдых, сон, чистка, наблюдение — на месте; игры с курсором — M1.6.
+                // Отдых, сон, чистка — на месте.
                 break;
         }
 
@@ -325,7 +433,118 @@ public sealed class DesktopLocomotion
         _steps.Enqueue(new PauseStep(TimeSpan.FromSeconds(1.5 + (2.5 * _random.NextDouble()))));
     }
 
-    private void QueueFlight(Surface landing, double x)
+    /// <summary>
+    /// Отойти от курсора (ТЗ §8.2): голубь отлетает вдоль своей поверхности туда, где больше
+    /// места, — не шагом: шагом от резкого курсора не уйти.
+    /// </summary>
+    private void QueueFlee()
+    {
+        if (CurrentSurface() is not { } surface || _world.Cursor.Position is not { } cursor)
+        {
+            return;
+        }
+
+        var margin = Margin(surface);
+        var (left, right) = (surface.Left + margin, surface.Right - margin);
+        var reach = _settings.FleeDistance * Scale();
+        var away = Body.X >= cursor.X ? 1 : -1;
+        var x = Math.Clamp(Body.X + (away * reach), left, right);
+
+        // Прижат к краю: улетает на другую сторону от курсора, если там просторнее.
+        if (Math.Abs(x - cursor.X) < reach / 2)
+        {
+            var other = Math.Clamp(cursor.X - (away * reach), left, right);
+            if (Math.Abs(other - cursor.X) > Math.Abs(x - cursor.X))
+            {
+                x = other;
+            }
+        }
+
+        if (Math.Abs(x - Body.X) / Scale() >= MinWalk)
+        {
+            QueueFlight(surface, x);
+        }
+    }
+
+    /// <summary>
+    /// Реакция на курсор, пока намерение не сменится (ТЗ §8.2): наблюдать — повернуться к нему;
+    /// следовать и искать внимания — подойти; играть — подойти и подпрыгивать рядом. Далёкий
+    /// курсор голубь догоняет перелётом.
+    /// </summary>
+    private bool FollowCursor(CursorStep step, TimeSpan now, double dt)
+    {
+        if (CurrentSurface() is not { } surface || _world.Cursor.Position is not { } cursor)
+        {
+            SetGait(Gait.Stand, now);
+            return false;
+        }
+
+        if (step.Intent == IntentKind.Observe)
+        {
+            SetGait(Gait.Stand, now);
+            Body = Body with { FacingLeft = cursor.X < Body.X };
+            return false;
+        }
+
+        var scale = Scale();
+        var margin = Margin(surface);
+        var side = Body.X >= cursor.X ? 1 : -1;
+        var goal = Math.Clamp(cursor.X + (side * _settings.CursorKeep * scale), surface.Left + margin, surface.Right - margin);
+        var distance = Math.Abs(goal - Body.X) / scale;
+
+        if (distance > _settings.CursorFlyFrom)
+        {
+            Interject(new FlightStep(FlightLegs(surface, goal), surface));
+            return false;
+        }
+
+        if (distance > 2)
+        {
+            Walk(goal, now, dt);
+            return false;
+        }
+
+        Body = Body with { FacingLeft = cursor.X < Body.X };
+        TimeSpan? hopEvery = step.Intent switch
+        {
+            IntentKind.Play => _settings.PlayHopEvery,
+            IntentKind.SeekAttention => _settings.AttentionHopEvery,
+            _ => null,
+        };
+
+        if (hopEvery is { } every && now - step.LastHop >= every)
+        {
+            step.LastHop = now;
+            Interject(new HopStep());
+            return false;
+        }
+
+        SetGait(Gait.Stand, now);
+        return false;
+    }
+
+    /// <summary>Вставляет шаг перед текущим: текущий продолжится после него.</summary>
+    private void Interject(Step step)
+    {
+        var rest = _steps.ToArray();
+        _steps.Clear();
+        if (_step is { } current)
+        {
+            _steps.Enqueue(current);
+        }
+
+        foreach (var queued in rest)
+        {
+            _steps.Enqueue(queued);
+        }
+
+        _step = step;
+        _stepStarted = _lastUpdate;
+    }
+
+    private void QueueFlight(Surface landing, double x) => _steps.Enqueue(new FlightStep(FlightLegs(landing, x), landing));
+
+    private List<Leg> FlightLegs(Surface landing, double x)
     {
         var start = (Body.X, Body.Y);
         var end = (x, (double)landing.Y);
@@ -351,7 +570,7 @@ public sealed class DesktopLocomotion
             legs.Add(Arc(entry, end, to.Scale, 0.35));
         }
 
-        _steps.Enqueue(new FlightStep(legs, landing));
+        return legs;
     }
 
     /// <summary>
@@ -402,6 +621,8 @@ public sealed class DesktopLocomotion
                 return Walk(walk.TargetX, now, dt);
             case FlightStep flight:
                 return Fly(flight, now, elapsed, events);
+            case CursorStep cursor:
+                return FollowCursor(cursor, now, dt);
             default:
                 throw new InvalidOperationException($"Неизвестный шаг локомоции: {step}.");
         }
@@ -562,6 +783,12 @@ public sealed class DesktopLocomotion
     private sealed record ReportStep(ActionReported Report) : Step;
 
     private sealed record FlightStep(IReadOnlyList<Leg> Legs, Surface Landing, bool SkipTakeOff = false) : Step;
+
+    /// <summary>Реакция на курсор: длится, пока намерение не сменится.</summary>
+    private sealed record CursorStep(IntentKind Intent) : Step
+    {
+        public TimeSpan LastHop { get; set; }
+    }
 
     private abstract record Leg((double X, double Y) End, TimeSpan Duration);
 

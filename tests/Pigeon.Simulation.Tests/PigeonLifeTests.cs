@@ -189,6 +189,117 @@ public sealed class PigeonLifeTests
     }
 
     [Fact]
+    public void Poke_PleasesASociablePigeonMoreThanAnIndependentOne()
+    {
+        var sociable = new PigeonSimulation(Seed, Options, Personality.Average with { Sociability = 100, Independence = 0 });
+        var loner = new PigeonSimulation(Seed, Options, Personality.Average with { Sociability = 0, Independence = 100 });
+        var sociableBefore = sociable.Pigeon.Mood.Valence;
+        var lonerBefore = loner.Pigeon.Mood.Valence;
+
+        sociable.Submit(new UserPoked());
+        loner.Submit(new UserPoked());
+        sociable.RunTicks(1);
+        loner.RunTicks(1);
+
+        Assert.True(sociable.Pigeon.Mood.Valence - sociableBefore > 0.15);
+        Assert.True(loner.Pigeon.Mood.Valence - lonerBefore < 0.01);
+    }
+
+    [Fact]
+    public void Pokes_InQuickSuccession_AnnoyThePigeon()
+    {
+        var simulation = new PigeonSimulation(Seed, Options, Personality.Average);
+        var valences = new List<double>();
+
+        for (var i = 0; i < 6; i++)
+        {
+            var before = simulation.Pigeon.Mood.Valence;
+            simulation.Submit(new UserPoked());
+            simulation.RunTicks(1);
+            valences.Add(simulation.Pigeon.Mood.Valence - before);
+        }
+
+        Assert.True(valences[0] > 0.0);
+        Assert.True(valences[^1] < 0.0);
+        Assert.True(simulation.Pigeon.Mood.Arousal >= 0.7);
+    }
+
+    [Fact]
+    public void Petting_GivesAttentionAndCalmsWithoutWakingASleepingPigeon()
+    {
+        var simulation = new PigeonSimulation(Seed, Options, Personality.Average);
+        simulation.RunTicks(30_000);
+        simulation.Pigeon.StartIntent(IntentKind.Sleep, null, simulation.Tick, simulation.Tick + 6_000);
+        var before = simulation.Pigeon.ToSnapshot();
+
+        simulation.Submit(new UserPetted());
+        simulation.RunTicks(1);
+
+        Assert.True(simulation.Pigeon.Needs.Attention < before.Needs.Attention - 0.3);
+        Assert.True(simulation.Pigeon.Mood.Valence > before.Mood.Valence);
+        Assert.True(simulation.Pigeon.Mood.Arousal < before.Mood.Arousal);
+        Assert.Equal(IntentKind.Sleep, simulation.Pigeon.Intent);
+        Assert.Equal(before.IntentStartedTick, simulation.Pigeon.IntentStartedTick);
+    }
+
+    [Fact]
+    public void PickingUp_ScaresATimidPigeonMoreAndForcesADecision()
+    {
+        var timid = new PigeonSimulation(Seed, Options, Personality.Average with { Boldness = 0 });
+        var bold = new PigeonSimulation(Seed, Options, Personality.Average with { Boldness = 100 });
+        timid.RunTicks(100);
+        bold.RunTicks(100);
+        var timidBefore = timid.Pigeon.Mood;
+        var boldBefore = bold.Pigeon.Mood;
+
+        timid.Submit(new UserPickedUp());
+        bold.Submit(new UserPickedUp());
+        timid.RunTicks(1);
+        bold.RunTicks(1);
+
+        Assert.True(timid.Pigeon.Mood.Arousal - timidBefore.Arousal > 2.5 * (bold.Pigeon.Mood.Arousal - boldBefore.Arousal));
+        Assert.True(timid.Pigeon.Mood.Valence - timidBefore.Valence < bold.Pigeon.Mood.Valence - boldBefore.Valence);
+        Assert.Equal(Pigeon.AI.DecisionTrigger.Interrupted, timid.LastDecision!.Trigger);
+    }
+
+    [Fact]
+    public void Dropping_ForcesADecision()
+    {
+        var simulation = new PigeonSimulation(Seed, Options);
+        simulation.RunTicks(100);
+
+        simulation.Submit(new UserDropped());
+        simulation.RunTicks(1);
+
+        Assert.Equal(Pigeon.AI.DecisionTrigger.Interrupted, simulation.LastDecision!.Trigger);
+        Assert.Equal(101, simulation.Tick);
+    }
+
+    [Fact]
+    public void CursorApproach_ForcesADecisionUnlessThePigeonSleeps()
+    {
+        var awake = new PigeonSimulation(Seed, Options);
+        var asleep = new PigeonSimulation(Seed, Options);
+        awake.RunTicks(100);
+        asleep.RunTicks(100);
+        asleep.Pigeon.StartIntent(IntentKind.Sleep, null, asleep.Tick, asleep.Tick + 6_000);
+        var sleepMood = asleep.Pigeon.Mood;
+        var decisions = asleep.LastDecision;
+
+        awake.Submit(new CursorApproached());
+        asleep.Submit(new CursorApproached());
+        awake.RunTicks(1);
+        asleep.RunTicks(1);
+
+        Assert.Equal(Pigeon.AI.DecisionTrigger.Interrupted, awake.LastDecision!.Trigger);
+        Assert.Equal(101, awake.Tick);
+        Assert.Same(decisions, asleep.LastDecision);
+        Assert.Equal(IntentKind.Sleep, asleep.Pigeon.Intent);
+        Assert.True(asleep.Pigeon.Mood.Arousal <= sleepMood.Arousal);
+        Assert.Single(asleep.Journal, e => e.Event is CursorApproached);
+    }
+
+    [Fact]
     public void AbsenceEnded_RejectsNegativeDuration()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AbsenceEnded(TimeSpan.FromSeconds(-1)));

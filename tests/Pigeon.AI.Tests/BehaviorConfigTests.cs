@@ -20,7 +20,7 @@ public sealed class BehaviorConfigTests
         """;
 
     [Fact]
-    public void DefaultConfig_DescribesTheTenIntentsOfMvp1()
+    public void DefaultConfig_DescribesAllIntentsOfMvp1()
     {
         var config = BehaviorConfig.Default;
 

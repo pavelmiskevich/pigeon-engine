@@ -2,6 +2,7 @@ using Pigeon.Common.Hashing;
 using Pigeon.Core;
 using Pigeon.World.Abstractions;
 using Pigeon.World.Desktop.Capabilities;
+using Pigeon.World.Desktop.Interaction;
 
 namespace Pigeon.World.Desktop.Screen;
 
@@ -35,7 +36,7 @@ public sealed record PigeonDisplaced(MonitorKey? From, MonitorKey? To, Displacem
 
 /// <summary>
 /// Desktop World уровня L2 (ТЗ §11, §32; матрица возможностей §4): поверхности экрана и мониторы
-/// как affordances. Окна и курсор — уровень L3, позже.
+/// как affordances, а при C7 — и курсор рядом с голубем (M1.6). Окна — уровень L3, позже.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -66,15 +67,19 @@ public sealed class DesktopWorld : IAffordanceSource
     private IReadOnlyList<Affordance> _affordances = [];
 
     /// <param name="probed">Проба при запуске (ICapabilityProbe): без C1–C4 оверлея уровень L2 недоступен.</param>
-    public DesktopWorld(IDesktopEnvironment environment, IReadOnlyList<CapabilityCheck> probed)
+    public DesktopWorld(IDesktopEnvironment environment, IReadOnlyList<CapabilityCheck> probed, CursorSettings? cursor = null)
     {
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(probed);
 
         _environment = environment;
         _probed = probed;
+        Cursor = new CursorPresence(cursor);
         Level = ComputeLevel(DesktopTopology.Empty);
     }
+
+    /// <summary>Курсор (ТЗ §8.2): хост сообщает его положение через <see cref="ObserveCursor"/>.</summary>
+    public CursorPresence Cursor { get; }
 
     public DesktopTopology Topology { get; private set; } = DesktopTopology.Empty;
 
@@ -86,7 +91,19 @@ public sealed class DesktopWorld : IAffordanceSource
     /// <summary>Монитор голубя; <c>null</c> — мониторов нет.</summary>
     public MonitorKey? PigeonMonitor { get; private set; }
 
-    public IReadOnlyList<Affordance> Current() => _affordances;
+    public IReadOnlyList<Affordance> Current() =>
+        Cursor.Affordance is { } cursor ? [.. _affordances.Append(cursor).OrderBy(a => a.Id.Value)] : _affordances;
+
+    /// <summary>
+    /// Где курсор и голубь сейчас (координаты — физические пиксели экрана). Возвращает
+    /// <c>true</c>, когда курсор только что подошёл к голубю и тот должен это заметить.
+    /// </summary>
+    /// <param name="pigeon">Середина голубя; <c>null</c> — его не видно или его несут.</param>
+    public bool ObserveCursor((double X, double Y)? cursor, (double X, double Y)? pigeon, TimeSpan now)
+    {
+        var scale = pigeon is { } p ? MonitorAt(p.X, p.Y)?.Scale ?? 1.0 : 1.0;
+        return Cursor.Observe(cursor, pigeon, scale, now);
+    }
 
     /// <summary>Перечитывает экран и возвращает, что изменилось с прошлого раза.</summary>
     public IReadOnlyList<DesktopWorldEvent> Refresh()

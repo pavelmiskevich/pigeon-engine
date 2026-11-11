@@ -17,9 +17,12 @@ internal static class GoldenSimulation
 {
     public const ulong Seed = 0x5EED_0001UL;
 
-    /// <summary>Час жизни: голубь устаёт, отдыхает, выбирает цели в мире и теряет опору (M1.1–M1.3).</summary>
+    /// <summary>
+    /// Час жизни: голубь устаёт, отдыхает, выбирает цели в мире, теряет опору (M1.1–M1.3), его
+    /// гладят, берут в руки, к нему подходит курсор (M1.6).
+    /// </summary>
     public const long Ticks = 36_000;
-    public const ulong ExpectedHash = 0x4AF1_542C_DF92_E351UL;
+    public const ulong ExpectedHash = 0x0308_B2FF_0C74_D149UL;
 
     public static JournalEntry[] Journal() =>
     [
@@ -27,10 +30,18 @@ internal static class GoldenSimulation
         new(123, new UserPoked()),
         new(456, new UserPoked()),
         new(4_567, new UserPoked()),
+        new(6_000, new CursorApproached()),
+        new(6_010, new UserPetted()),
+        new(6_020, new UserPetted()),
+        new(9_000, new UserPickedUp()),
+        new(9_025, new UserDropped()),
         new(12_000, new AffordancesObserved(World[1..])),
         new(20_000, new AbsenceEnded(TimeSpan.FromHours(13))),
         new(24_000, new AffordancesObserved(World)),
         new(27_777, new UserPoked()),
+        new(27_778, new UserPoked()),
+        new(27_779, new UserPoked()),
+        new(27_780, new UserPoked()),
         new(30_000, new FootingLost(DisplacementReason.TerritoryGone)),
         new(30_000, new AffordancesObserved(World[..2])),
     ];

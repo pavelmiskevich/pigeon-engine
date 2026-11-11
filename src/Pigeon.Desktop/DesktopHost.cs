@@ -7,6 +7,8 @@ using Pigeon.Desktop.Rendering;
 using Pigeon.Desktop.Windows;
 using Pigeon.Desktop.Windows.Overlay;
 using Pigeon.Simulation;
+using Pigeon.World.Desktop.Capabilities;
+using Pigeon.World.Desktop.Interaction;
 using Pigeon.World.Desktop.Locomotion;
 using Pigeon.World.Desktop.Screen;
 
@@ -21,8 +23,8 @@ internal sealed class StopwatchClock : IClock
 }
 
 /// <summary>
-/// Голубь на Desktop Windows (M1.4, M1.5): проба, мир L2, симуляция, локомоция и окна оверлея в
-/// одном потоке. Пока голубь стоит, окно перерисовывается только при смене кадра, и процесс
+/// Голубь на Desktop Windows (M1.4–M1.6): проба, мир L2, симуляция, локомоция, окна оверлея и
+/// мышь в одном потоке. Пока голубь стоит, окно перерисовывается только при смене кадра, и процесс
 /// спит до следующего события; в движении кадры идут 60 раз в секунду (ТЗ §37).
 /// </summary>
 [SupportedOSPlatform("windows")]
@@ -34,6 +36,20 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
 
     /// <summary>Дольше этого цикл не спит, даже если кадр не меняется: симуляция догонит время.</summary>
     private static readonly TimeSpan LongestSleep = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Пока курсор рядом, он опрашивается чаще: голубь следит за ним без задержки (ТЗ §8.2).</summary>
+    private static readonly TimeSpan CursorNearSleep = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>Сколько поглаженный голубь сидит довольный.</summary>
+    private static readonly TimeSpan PettedFor = TimeSpan.FromSeconds(2.5);
+
+    private static readonly TimeSpan HideFor = TimeSpan.FromHours(1);
+
+    /// <summary>Середина голубя над лапами, логические пиксели экрана: до неё считается расстояние до курсора.</summary>
+    private const double BodyMiddle = 20;
+
+    private const int MenuHide = 1;
+    private const int MenuQuit = 2;
 
     public int Run()
     {
@@ -54,10 +70,17 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
 
         using var sprites = new SpriteLibrary(spritesDirectory);
         using var shadow = new OverlayWindow("PigeonShadow", clickThrough: true);
-        using var pigeon = new OverlayWindow("PigeonOverlay", clickThrough: false);
+        using var pigeon = new OverlayWindow("PigeonOverlay", clickThrough: false, handCursor: true);
         using var keeper = new TopmostKeeper(shadow.Handle, pigeon.Handle);
-        pigeon.RightClicked += (_, _) => MessageLoop.Quit();
+        var pointer = new Queue<PointerEventArgs>();
+        pigeon.Pointer += (_, e) => pointer.Enqueue(e);
         using var renderer = new PigeonRenderer(pigeon, shadow);
+
+        // Курсор вдали от голубя — только при C7 (ТЗ §8.2); над голубем жесты работают всегда.
+        var cursorKnown = probe.Checks.Any(c => c.Capability == Capability.GlobalCursor && c.IsUsable);
+        var gestures = new PointerGestures();
+        var petted = (Since: TimeSpan.Zero, Until: TimeSpan.Zero);
+        var hiddenUntil = TimeSpan.Zero;
 
         var stage = new PigeonStage(settings.SizeOnScreen);
         var player = new ClipPlayer();
@@ -69,7 +92,7 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         var nextChange = TimeSpan.Zero;
         var firstFrame = true;
 
-        Console.WriteLine($"Голубь на мониторе {world.PigeonMonitor}, уровень {world.Level}. Закрыть — правый клик по голубю.");
+        Console.WriteLine($"Голубь на мониторе {world.PigeonMonitor}, уровень {world.Level}. Меню — правый клик по голубю.");
 
         while (MessageLoop.Pump())
         {
@@ -84,6 +107,43 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                 }
 
                 Report(locomotion.OnWorldChanged(changes, now), simulation);
+            }
+
+            while (pointer.TryDequeue(out var input))
+            {
+                foreach (var gesture in Recognize(gestures, input, now))
+                {
+                    Interact(gesture, locomotion, simulation, now, ref petted);
+                }
+
+                if (input.Action == PointerAction.RightUp)
+                {
+                    MenuItem?[] items = [new MenuItem(MenuHide, "Скрыть на час"), null, new MenuItem(MenuQuit, "Выход")];
+                    switch (PopupMenu.Show(pigeon.Handle, input.X, input.Y, items))
+                    {
+                        case MenuHide:
+                            hiddenUntil = clock.Elapsed + HideFor;
+                            break;
+                        case MenuQuit:
+                            MessageLoop.Quit();
+                            break;
+                    }
+                }
+            }
+
+            var hidden = now < hiddenUntil;
+            if (cursorKnown && measurement is null)
+            {
+                var seen = locomotion.Body;
+                var scale = world.MonitorAt(seen.X, seen.Y - 1)?.Scale ?? 1.0;
+                (double X, double Y)? middle = shown is not null && !hidden && !locomotion.IsHeld
+                    ? (seen.X, seen.Y - (BodyMiddle * scale))
+                    : null;
+                (double X, double Y)? cursor = CursorPosition.Read() is { } point ? (point.X, point.Y) : null;
+                if (world.ObserveCursor(cursor, middle, now))
+                {
+                    simulation.Submit(new CursorApproached());
+                }
             }
 
             driver.Pump();
@@ -105,7 +165,13 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
             }
 
             var moving = measurement is { Moving: true };
-            var frame = stage.Compose(world, body, intent, now);
+            var frame = hidden ? null : stage.Compose(world, body, intent, now);
+            if (now < petted.Until && body.Gait == Gait.Stand && frame is { } content)
+            {
+                // Поглаженный голубь сидит довольный, пока не кончится пауза.
+                frame = content with { Clip = "sit", ClipStarted = petted.Since };
+            }
+
             if (moving && frame is { } walking)
             {
                 // Замер движения: шаг на месте со скоростью ходьбы, кадры по пройденному пути.
@@ -185,11 +251,61 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
 
             // На месте — спать до смены кадра или опроса экрана. Отдельно ради тика симуляции не
             // просыпаемся: она досчитает пропущенные шаги при следующем пробуждении.
-            var wake = Min(nextChange, lastRefresh + WorldRefresh, now + LongestSleep);
+            var wake = Min(nextChange, lastRefresh + WorldRefresh, now + (world.Cursor.IsNear ? CursorNearSleep : LongestSleep));
             MessageLoop.Wait(wake - clock.Elapsed);
         }
 
         return 0;
+    }
+
+    /// <summary>Событие мыши над голубем — в жесты (ТЗ §11.8).</summary>
+    private static IReadOnlyList<Gesture> Recognize(PointerGestures gestures, PointerEventArgs input, TimeSpan now) => input.Action switch
+    {
+        PointerAction.Hover or PointerAction.Drag => gestures.Move(input.X, input.Y, now),
+        PointerAction.LeftDown => gestures.Press(input.X, input.Y, now),
+        PointerAction.LeftUp => gestures.Release(input.X, input.Y, now),
+        PointerAction.CaptureLost => gestures.Cancel(input.X, input.Y),
+        _ => [],
+    };
+
+    /// <summary>
+    /// Жест — в мир и в симуляцию: мир сразу показывает реакцию тела, симуляция записывает
+    /// взаимодействие в журнал и меняет потребности и настроение (ТЗ §11.8).
+    /// </summary>
+    private static void Interact(
+        Gesture gesture,
+        DesktopLocomotion locomotion,
+        PigeonSimulation simulation,
+        TimeSpan now,
+        ref (TimeSpan Since, TimeSpan Until) petted)
+    {
+        switch (gesture.Kind)
+        {
+            case GestureKind.Poke when !locomotion.IsHeld:
+                locomotion.Flinch();
+                simulation.Submit(new UserPoked());
+                break;
+            case GestureKind.Pet when !locomotion.IsHeld:
+                locomotion.Settle(PettedFor);
+                petted = (now < petted.Until ? petted.Since : now, now + PettedFor);
+                simulation.Submit(new UserPetted());
+                break;
+            case GestureKind.PickUp:
+                locomotion.PickUp(gesture.X, gesture.Y, now);
+                if (locomotion.IsHeld)
+                {
+                    simulation.Submit(new UserPickedUp());
+                }
+
+                break;
+            case GestureKind.Carry:
+                locomotion.Carry(gesture.X, gesture.Y);
+                break;
+            case GestureKind.Drop when locomotion.IsHeld:
+                locomotion.Drop(now);
+                simulation.Submit(new UserDropped());
+                break;
+        }
     }
 
     /// <summary>События локомоции — в симуляцию: результат исполнения и потеря опоры.</summary>
