@@ -367,4 +367,39 @@ internal static class Native
 
     [DllImport("advapi32.dll")]
     public static extern int RegCloseKey(IntPtr key);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetCapture(IntPtr window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetCapture();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetCursor(IntPtr cursor);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CreatePopupMenu();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AppendMenuW(IntPtr menu, uint flags, UIntPtr id, string? text);
+
+    [DllImport("user32.dll")]
+    public static extern int TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr window, IntPtr parameters);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyMenu(IntPtr menu);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessageW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 }

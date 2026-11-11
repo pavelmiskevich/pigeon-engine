@@ -40,6 +40,26 @@ public sealed class PigeonSimulation
     internal const double WokenValence = -0.15;
     internal const double WokenArousal = 0.25;
 
+    // Тычок, когда голубь и так взвинчен (тыкают слишком часто): раздражение.
+    internal const double AnnoyedAboveArousal = 0.7;
+    internal const double AnnoyedValence = -0.12;
+    internal const double AnnoyedArousal = 0.1;
+
+    // Ласка: много внимания, немного радости и спокойствия.
+    internal const double PetAttentionRelief = 0.35;
+    internal const double PetBoredomRelief = 0.05;
+    internal const double PetValence = 0.12;
+    internal const double PetArousal = -0.05;
+
+    // Взяли в руки: испуг по смелости, внимание по общительности.
+    internal const double PickUpAttentionRelief = 0.15;
+    internal const double PickUpValence = -0.12;
+    internal const double PickUpArousal = 0.3;
+    internal const double DropArousal = 0.05;
+
+    // Курсор рядом: голубь настораживается.
+    internal const double CursorArousal = 0.05;
+
     // Потеря опоры: испуг, у робкого — до полутора раз сильнее, у смелого — вдвое слабее.
     internal const double StartleValence = -0.2;
     internal const double StartleArousal = 0.35;
@@ -425,6 +445,16 @@ public sealed class PigeonSimulation
         return false;
     }
 
+    /// <summary>Насколько голубь пугается: робкий — до полутора раз сильнее, смелый — вдвое слабее.</summary>
+    private double Fright() => 1.0 - 0.5 * Personality.Centered(Pigeon.Personality.Boldness);
+
+    /// <summary>
+    /// Насколько голубю приятно внимание человека, −1..1: общительному — больше, независимому —
+    /// меньше. Отношений (ТЗ §21) в домене ещё нет, пока только личность.
+    /// </summary>
+    private double Affinity() =>
+        0.5 * Personality.Centered(Pigeon.Personality.Sociability) - 0.5 * Personality.Centered(Pigeon.Personality.Independence);
+
     private void Apply(InputEvent inputEvent, long tick)
     {
         switch (inputEvent)
@@ -435,9 +465,9 @@ public sealed class PigeonSimulation
                     .Change(NeedKind.Fatigue, PokeFatigue)
                     .Change(NeedKind.Attention, -PokeAttentionRelief)
                     .Change(NeedKind.Boredom, -PokeBoredomRelief));
-                Pigeon.SetMood(woken
-                    ? Pigeon.Mood.Nudge(WokenValence, WokenArousal)
-                    : Pigeon.Mood.Nudge(PokeValence, PokeArousal));
+                Pigeon.SetMood(woken ? Pigeon.Mood.Nudge(WokenValence, WokenArousal)
+                    : Pigeon.Mood.Arousal >= AnnoyedAboveArousal ? Pigeon.Mood.Nudge(AnnoyedValence, AnnoyedArousal)
+                    : Pigeon.Mood.Nudge(PokeValence * (1.0 + Affinity()), PokeArousal));
                 if (woken)
                 {
                     // Разбуженный голубь сразу снова не засыпает: отдых уходит на кулдаун.
@@ -445,6 +475,30 @@ public sealed class PigeonSimulation
                 }
 
                 Force(DecisionTrigger.Interrupted);
+                break;
+            case UserPetted:
+                Pigeon.SetNeeds(Pigeon.Needs
+                    .Change(NeedKind.Attention, -PetAttentionRelief)
+                    .Change(NeedKind.Boredom, -PetBoredomRelief));
+                Pigeon.SetMood(Pigeon.Mood.Nudge(PetValence * (1.0 + Affinity()), PetArousal));
+                break;
+            case UserPickedUp:
+                var scared = Fright();
+                Pigeon.SetNeeds(Pigeon.Needs.Change(NeedKind.Attention, -PickUpAttentionRelief));
+                Pigeon.SetMood(Pigeon.Mood.Nudge(PickUpValence * scared + PetValence * Affinity(), PickUpArousal * scared));
+                Force(DecisionTrigger.Interrupted);
+                break;
+            case UserDropped:
+                Pigeon.SetMood(Pigeon.Mood.Nudge(0.0, DropArousal));
+                Force(DecisionTrigger.Interrupted);
+                break;
+            case CursorApproached:
+                if (Pigeon.Intent != IntentKind.Sleep)
+                {
+                    Pigeon.SetMood(Pigeon.Mood.Nudge(0.0, CursorArousal));
+                    Force(DecisionTrigger.Interrupted);
+                }
+
                 break;
             case AbsenceEnded absence:
                 var seconds = NeedRules.AbsenceSeconds(absence.Duration);
@@ -459,7 +513,7 @@ public sealed class PigeonSimulation
                     throw new ArgumentException($"Неизвестная причина потери опоры: {(int)lost.Reason}.", nameof(inputEvent));
                 }
 
-                var fright = 1.0 - 0.5 * Personality.Centered(Pigeon.Personality.Boldness);
+                var fright = Fright();
                 Pigeon.SetMood(Pigeon.Mood.Nudge(StartleValence * fright, StartleArousal * fright));
                 Force(DecisionTrigger.Interrupted);
                 break;

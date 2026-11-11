@@ -12,6 +12,9 @@ namespace Pigeon.Desktop.Windows.Overlay;
 /// <remarks>
 /// Полностью прозрачные пиксели система сама пропускает для кликов. Окно с
 /// <c>clickThrough</c> пропускает клики целиком — для тени, которая полупрозрачна везде.
+/// Мышь над непрозрачной частью приходит событием <see cref="Pointer"/>; нажатие левой кнопки
+/// захватывает мышь, чтобы перетаскивание не терялось, когда окно отстаёт от курсора. Ни клик,
+/// ни захват окно не активируют: фокус остаётся у программы пользователя.
 /// </remarks>
 [SupportedOSPlatform("windows")]
 public sealed class OverlayWindow : IDisposable
@@ -19,12 +22,17 @@ public sealed class OverlayWindow : IDisposable
     private const uint WsPopup = 0x80000000;
     private const uint WmDestroy = 0x0002;
     private const uint WmMouseActivate = 0x0021;
+    private const uint WmMouseMove = 0x0200;
+    private const uint WmLButtonDown = 0x0201;
+    private const uint WmLButtonUp = 0x0202;
     private const uint WmRButtonUp = 0x0205;
+    private const uint WmCaptureChanged = 0x0215;
     private const int MaNoActivate = 3;
     private const int SwShowNoActivate = 4;
     private const uint UlwAlpha = 2;
     private const byte AcSrcAlpha = 1;
     private static readonly IntPtr IdcArrow = 32512;
+    private static readonly IntPtr IdcHand = 32649;
 
     // Делегат оконной процедуры живёт столько же, сколько класс окна: сборщик мусора не должен его забрать.
     private static readonly WindowProc Procedure = WindowProcedure;
@@ -34,9 +42,11 @@ public sealed class OverlayWindow : IDisposable
     private IntPtr _memoryDc;
     private IntPtr _bitmap;
     private bool _disposed;
+    private bool _pressed;
 
     /// <param name="className">Класс окна: по нему окно узнаётся в пробах и при отладке.</param>
-    public OverlayWindow(string className, bool clickThrough)
+    /// <param name="handCursor">Над окном курсор — рука: голубя можно погладить и взять.</param>
+    public OverlayWindow(string className, bool clickThrough, bool handCursor = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(className);
 
@@ -48,7 +58,7 @@ public sealed class OverlayWindow : IDisposable
                 Size = (uint)Marshal.SizeOf<WindowClass>(),
                 WndProc = Marshal.GetFunctionPointerForDelegate(Procedure),
                 Instance = instance,
-                Cursor = LoadCursorW(IntPtr.Zero, IdcArrow),
+                Cursor = LoadCursorW(IntPtr.Zero, handCursor ? IdcHand : IdcArrow),
                 ClassName = className,
             };
             if (RegisterClassExW(ref windowClass) == 0)
@@ -68,8 +78,8 @@ public sealed class OverlayWindow : IDisposable
         _memoryDc = CreateCompatibleDC(IntPtr.Zero);
     }
 
-    /// <summary>Правый клик по непрозрачной части окна.</summary>
-    public event EventHandler? RightClicked;
+    /// <summary>Мышь над непрозрачной частью окна, а при нажатой левой кнопке — где угодно.</summary>
+    public event EventHandler<PointerEventArgs>? Pointer;
 
     public IntPtr Handle { get; }
 
@@ -169,14 +179,49 @@ public sealed class OverlayWindow : IDisposable
         _memoryDc = IntPtr.Zero;
     }
 
+    /// <summary>Координаты берутся у курсора, а не из сообщения: нужны экранные физические пиксели.</summary>
+    private void Raise(PointerAction action)
+    {
+        if (Pointer is { } handler && GetCursorPos(out var point))
+        {
+            handler(this, new PointerEventArgs(action, point.X, point.Y));
+        }
+    }
+
     private static IntPtr WindowProcedure(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
     {
         switch (message)
         {
             case WmMouseActivate:
                 return MaNoActivate;
+            case WmLButtonDown when Windows.TryGetValue(window, out var overlay):
+                overlay._pressed = true;
+                SetCapture(window);
+                overlay.Raise(PointerAction.LeftDown);
+                return IntPtr.Zero;
+            case WmLButtonUp when Windows.TryGetValue(window, out var overlay):
+                var wasPressed = overlay._pressed;
+                overlay._pressed = false;
+                if (GetCapture() == window)
+                {
+                    ReleaseCapture();
+                }
+
+                if (wasPressed)
+                {
+                    overlay.Raise(PointerAction.LeftUp);
+                }
+
+                return IntPtr.Zero;
+            case WmCaptureChanged when Windows.TryGetValue(window, out var overlay) && overlay._pressed:
+                overlay._pressed = false;
+                overlay.Raise(PointerAction.CaptureLost);
+                return IntPtr.Zero;
+            case WmMouseMove when Windows.TryGetValue(window, out var overlay):
+                overlay.Raise(overlay._pressed ? PointerAction.Drag : PointerAction.Hover);
+                return IntPtr.Zero;
             case WmRButtonUp when Windows.TryGetValue(window, out var overlay):
-                overlay.RightClicked?.Invoke(overlay, EventArgs.Empty);
+                overlay.Raise(PointerAction.RightUp);
                 return IntPtr.Zero;
             case WmDestroy:
                 return IntPtr.Zero;
@@ -184,6 +229,36 @@ public sealed class OverlayWindow : IDisposable
                 return DefWindowProcW(window, message, wParam, lParam);
         }
     }
+}
+
+/// <summary>Что сделала мышь над окном оверлея.</summary>
+public enum PointerAction
+{
+    /// <summary>Курсор движется над окном, кнопки отпущены.</summary>
+    Hover = 0,
+
+    /// <summary>Нажата левая кнопка; мышь захвачена окном.</summary>
+    LeftDown = 1,
+
+    /// <summary>Курсор движется с нажатой левой кнопкой — над окном или нет.</summary>
+    Drag = 2,
+
+    LeftUp = 3,
+
+    /// <summary>Захват мыши отнят системой (Alt-Tab, Ctrl+Alt+Del) до отпускания кнопки.</summary>
+    CaptureLost = 4,
+
+    RightUp = 5,
+}
+
+/// <param name="X">Курсор, физические пиксели виртуального экрана.</param>
+public sealed class PointerEventArgs(PointerAction action, int x, int y) : EventArgs
+{
+    public PointerAction Action { get; } = action;
+
+    public int X { get; } = x;
+
+    public int Y { get; } = y;
 }
 
 /// <summary>
