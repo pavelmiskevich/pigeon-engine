@@ -173,6 +173,30 @@ public sealed class UtilityBrainTests
         }
     }
 
+    /// <summary>Реакция на курсор рядом (ТЗ §8.2) — по личности и настроению.</summary>
+    public static TheoryData<string, Personality, Needs, Mood, double, IntentKind> CursorReactions() => new()
+    {
+        { "робкий и раздражённый", Personality.Average with { Boldness = 15, Calmness = 25 }, new Needs(0.2, 0.3, 0.2), new Mood(-0.3, 0.7, 0.1), 0.35, IntentKind.Flee },
+        { "резкий курсор", Personality.Average, new Needs(0.2, 0.3, 0.2), new Mood(0.1, 0.55, 0.0), 0.6, IntentKind.Flee },
+        { "игривый и смелый", Personality.Average with { Playfulness = 85, Boldness = 75, Energy = 70 }, new Needs(0.2, 0.4, 0.2), new Mood(0.3, 0.55, 0.0), 0.2, IntentKind.Play },
+        { "спокойный и любопытный", Personality.Average with { Calmness = 80, Curiosity = 80 }, new Needs(0.2, 0.4, 0.2), new Mood(0.1, 0.35, 0.0), 0.2, IntentKind.Observe },
+        { "соскучился", Personality.Average with { Sociability = 85, Independence = 20 }, new Needs(0.2, 0.2, 0.8), new Mood(0.0, 0.5, 0.0), 0.2, IntentKind.SeekAttention },
+    };
+
+    [Theory]
+    [MemberData(nameof(CursorReactions))]
+    public void CursorNearby_ReactionFollowsPersonalityAndMood(string who, Personality traits, Needs needs, Mood mood, double risk, IntentKind expected)
+    {
+        var pigeon = new PigeonState(traits, mood);
+        pigeon.SetNeeds(needs);
+        var cursor = Cursor with { Attractiveness = 0.7, Risk = risk, TravelCost = TimeSpan.FromSeconds(3) };
+
+        var best = Brain.Score(pigeon, [cursor], new IntentCooldowns(), 0, withMomentum: false).MaxBy(o => o.Score)!;
+
+        Assert.True(best.Intent == expected, $"{who}: {best.Intent}, ожидалось {expected}");
+        Assert.Equal(cursor.Id, best.Target);
+    }
+
     private static PigeonState Pigeon(Personality? personality = null, Needs? needs = null)
     {
         var traits = personality ?? Personality.Average;

@@ -30,6 +30,25 @@ public sealed class PigeonDomainStorageTests
     }
 
     [Fact]
+    public async Task InteractionEntries_SurviveTheJournal()
+    {
+        using var db = new TestDatabase();
+        var store = await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
+        JournalEntry[] entries =
+        [
+            new(3, new CursorApproached()),
+            new(4, new UserPetted()),
+            new(7, new UserPickedUp()),
+            new(9, new UserDropped()),
+        ];
+
+        await store.AppendAsync(Pet, 0, entries, TestContext.Current.CancellationToken);
+        var read = await store.ReadAsync(Pet, 0, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(entries, read);
+    }
+
+    [Fact]
     public void Snapshot_RoundTripsPersonalityNeedsMoodAndPendingAbsence()
     {
         var simulation = TestDatabase.RunSimulation(Seed, 4_000);

@@ -13,6 +13,10 @@ internal readonly record struct EncodedInput(string Type, string? Payload);
 internal static class InputEventCodec
 {
     public const string UserPoked = "user-poked";
+    public const string UserPetted = "user-petted";
+    public const string UserPickedUp = "user-picked-up";
+    public const string UserDropped = "user-dropped";
+    public const string CursorApproached = "cursor-approached";
 
     /// <summary>Данные — длительность отсутствия в тиках <see cref="TimeSpan"/> (100 нс), десятичным числом.</summary>
     public const string AbsenceEnded = "absence-ended";
@@ -29,6 +33,10 @@ internal static class InputEventCodec
     public static EncodedInput Encode(InputEvent inputEvent) => inputEvent switch
     {
         Simulation.UserPoked => new(UserPoked, null),
+        Simulation.UserPetted => new(UserPetted, null),
+        Simulation.UserPickedUp => new(UserPickedUp, null),
+        Simulation.UserDropped => new(UserDropped, null),
+        Simulation.CursorApproached => new(CursorApproached, null),
         Simulation.AbsenceEnded absence => new(AbsenceEnded, absence.Duration.Ticks.ToString(CultureInfo.InvariantCulture)),
         Simulation.FootingLost lost => new(FootingLost, ((int)lost.Reason).ToString(CultureInfo.InvariantCulture)),
         Simulation.ActionFinished finished => new(ActionFinished, string.Create(CultureInfo.InvariantCulture,
@@ -40,6 +48,10 @@ internal static class InputEventCodec
     public static InputEvent Decode(string type, string? payload) => type switch
     {
         UserPoked => new Simulation.UserPoked(),
+        UserPetted => new Simulation.UserPetted(),
+        UserPickedUp => new Simulation.UserPickedUp(),
+        UserDropped => new Simulation.UserDropped(),
+        CursorApproached => new Simulation.CursorApproached(),
         AbsenceEnded => new Simulation.AbsenceEnded(TimeSpan.FromTicks(ParseNumber(type, payload))),
         FootingLost => new Simulation.FootingLost((World.Abstractions.DisplacementReason)(int)ParseNumber(type, payload)),
         ActionFinished => ParseActionFinished(type, payload),

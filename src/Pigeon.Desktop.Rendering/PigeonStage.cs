@@ -82,7 +82,7 @@ public sealed class PigeonStage(double sizeOnScreen)
         Gait.Walk => "walk",
         Gait.Hop => "hop",
         Gait.TakeOff => "takeoff",
-        Gait.Fly => "fly",
+        Gait.Fly or Gait.Held => "fly",
         Gait.Land => "land",
         _ => intent switch
         {
