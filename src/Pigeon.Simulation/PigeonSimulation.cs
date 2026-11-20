@@ -78,7 +78,7 @@ public sealed class PigeonSimulation
     private readonly IntentCooldowns _cooldowns;
     private readonly Queue<JournalEntry> _pending = new();
     private readonly List<JournalEntry> _journal = [];
-    private readonly long _journalOffset;
+    private long _journalOffset;
     private readonly double _stepSeconds;
 
     private IReadOnlyList<Affordance> _affordances;
@@ -151,12 +151,13 @@ public sealed class PigeonSimulation
     public Decision? LastDecision { get; private set; }
 
     /// <summary>
-    /// Применённые входы в порядке применения — с начала симуляции или с момента восстановления
-    /// из снимка. Глобальная позиция первой записи — <see cref="JournalOffset"/>.
+    /// Применённые входы в порядке применения — с начала симуляции, с момента восстановления из
+    /// снимка или с позиции, до которой журнал забыт (<see cref="ForgetJournalBefore"/>).
+    /// Глобальная позиция первой записи — <see cref="JournalOffset"/>.
     /// </summary>
     public IReadOnlyList<JournalEntry> Journal => _journal;
 
-    /// <summary>Сколько входов было применено до восстановления из снимка.</summary>
+    /// <summary>Глобальная позиция первой записи <see cref="Journal"/>: столько входов в памяти уже нет.</summary>
     public long JournalOffset => _journalOffset;
 
     /// <summary>Полная длина журнала с начала жизни симуляции.</summary>
@@ -204,6 +205,23 @@ public sealed class PigeonSimulation
             [.. _pending],
             _cooldowns.Snapshot(),
             _affordances);
+
+    /// <summary>
+    /// Забывает записи журнала до глобальной позиции <paramref name="position"/> (#50): хост
+    /// вызывает это, когда хранилище подтвердило их сохранение. Состояние и его хеш не меняются —
+    /// журнал в них не входит, — а память не растёт всё время жизни процесса.
+    /// </summary>
+    public void ForgetJournalBefore(long position)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(position, JournalLength);
+        if (position <= _journalOffset)
+        {
+            return;
+        }
+
+        _journal.RemoveRange(0, (int)(position - _journalOffset));
+        _journalOffset = position;
+    }
 
     /// <summary>Записи журнала, начиная с глобальной позиции <paramref name="position"/>.</summary>
     public IReadOnlyList<JournalEntry> GetJournalFrom(long position)
