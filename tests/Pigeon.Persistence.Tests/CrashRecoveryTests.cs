@@ -27,9 +27,16 @@ public sealed class CrashRecoveryTests
             var pet = new PetId(Guid.NewGuid());
             var lastReportedTick = await RunAndKillWriterAsync(db.Path, pet, CommitsBeforeKill + (round * 17));
 
-            Assert.Equal("ok", await QueryAfterCrashAsync(db.Path, "PRAGMA integrity_check;"));
-
+            // Первое открытие после убийства процесса: на Windows оно может кратковременно падать с
+            // SQLITE_IOERR, пока система освобождает файлы. Повторяет само хранилище (#17).
             var store = await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
+            if (store.OpenReport.Attempts > 1)
+            {
+                TestContext.Current.TestOutputHelper?.WriteLine(
+                    $"Открытие после аварии удалось с попытки {store.OpenReport.Attempts}; коды: {string.Join(", ", store.OpenReport.TransientErrors)}.");
+            }
+
+            Assert.Equal("ok", TestDatabase.Query(db.Path, "PRAGMA integrity_check;"));
             var snapshot = await store.LoadLatestAsync(pet, TestContext.Current.CancellationToken);
             Assert.NotNull(snapshot);
             Assert.True(snapshot.Tick >= lastReportedTick,
@@ -109,44 +116,6 @@ public sealed class CrashRecoveryTests
 
         // Подтверждённый тик читаем после остановки: позже строк уже не будет.
         return Interlocked.Read(ref lastTick);
-    }
-
-    /// <summary>
-    /// Первое открытие после убийства процесса. На Windows оно может кратковременно падать с
-    /// SQLITE_IOERR, пока система освобождает файлы убитого процесса или их проверяет антивирус.
-    /// Это не порча данных (порча — SQLITE_CORRUPT и провал integrity_check), поэтому ждём
-    /// до 10 секунд и сообщаем расширенные коды, если не дождались.
-    /// </summary>
-    private static async Task<string> QueryAfterCrashAsync(string databasePath, string sql)
-    {
-        var errors = new List<string>();
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-        while (true)
-        {
-            try
-            {
-                var result = TestDatabase.Query(databasePath, sql);
-                if (errors.Count > 0)
-                {
-                    TestContext.Current.TestOutputHelper?.WriteLine(
-                        $"Открытие после аварии удалось с попытки {errors.Count + 1}; коды SQLITE_IOERR: {string.Join(", ", errors)}.");
-                }
-
-                return result;
-            }
-            catch (Microsoft.Data.Sqlite.SqliteException exception) when (exception.SqliteErrorCode == 10)
-            {
-                errors.Add(exception.SqliteExtendedErrorCode.ToString(CultureInfo.InvariantCulture));
-                if (DateTime.UtcNow > deadline)
-                {
-                    throw new InvalidOperationException(
-                        $"База не открылась после аварии; расширенные коды SQLITE_IOERR: {string.Join(", ", errors)}.",
-                        exception);
-                }
-
-                await Task.Delay(200, TestContext.Current.CancellationToken);
-            }
-        }
     }
 
     private static string DotnetHost() =>
