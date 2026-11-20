@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.Data.Sqlite;
 
 namespace Pigeon.Persistence.Sqlite;
 
@@ -6,6 +7,10 @@ namespace Pigeon.Persistence.Sqlite;
 /// Ежедневные резервные копии базы через SQLite backup API (ТЗ §31): копия согласована даже
 /// во время записи. Хранятся последние <see cref="Keep"/> копий.
 /// </summary>
+/// <remarks>
+/// Копируется только существующая база питомца со схемой: иначе ротация вытеснила бы настоящие
+/// копии пустыми (#59). Старые копии удаляются только после того, как новая создана и проверена.
+/// </remarks>
 public sealed class SqliteBackupRotator
 {
     public const int DefaultKeep = 7;
@@ -51,24 +56,79 @@ public sealed class SqliteBackupRotator
         return CreateBackup(now);
     }
 
+    /// <exception cref="IOException">Базы нет, она пустая или копия не прошла проверку.</exception>
     public string CreateBackup(DateTimeOffset now)
     {
+        if (!File.Exists(_databasePath))
+        {
+            throw new FileNotFoundException("Базы питомца нет — копировать нечего.", _databasePath);
+        }
+
         Directory.CreateDirectory(_backupDirectory);
+        RemoveLeftovers();
         var name = FilePrefix + now.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture) + FileExtension;
         var path = Path.Combine(_backupDirectory, name);
         var temporary = path + ".tmp";
 
-        using (var source = SqliteConnections.Open(_databasePath))
-        using (var destination = SqliteConnections.Open(temporary))
+        try
         {
-            source.BackupDatabase(destination);
-            // Копия — самостоятельный файл, без WAL рядом.
-            SqliteConnections.Execute(destination, "PRAGMA journal_mode = DELETE;");
+            // Источник — только для чтения: так SQLite не создаст пустую базу на месте пропавшей.
+            using (var source = OpenReadOnly(_databasePath))
+            {
+                var schema = SqliteConnections.Scalar<int>(source, "PRAGMA user_version;");
+                if (schema == 0)
+                {
+                    throw new IOException($"«{_databasePath}» — не база питомца: схемы нет.");
+                }
+
+                using var destination = SqliteConnections.Open(temporary);
+                source.BackupDatabase(destination);
+                // Копия — самостоятельный файл, без WAL рядом.
+                SqliteConnections.Execute(destination, "PRAGMA journal_mode = DELETE;");
+                if (SqliteConnections.Scalar<int>(destination, "PRAGMA user_version;") != schema)
+                {
+                    throw new IOException($"Копия «{temporary}» не совпала с базой по версии схемы.");
+                }
+            }
+
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporary);
         }
 
-        File.Move(temporary, path, overwrite: true);
         Prune();
         return path;
+    }
+
+    private static SqliteConnection OpenReadOnly(string databasePath)
+    {
+        var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = databasePath,
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false,
+        }.ToString());
+        try
+        {
+            connection.Open();
+            return connection;
+        }
+        catch (SqliteException e)
+        {
+            connection.Dispose();
+            throw new IOException($"Базу «{databasePath}» не открыть для копирования: {e.Message}", e);
+        }
+    }
+
+    /// <summary>Временные файлы прошлых копий, оборванных аварией.</summary>
+    private void RemoveLeftovers()
+    {
+        foreach (var leftover in Directory.EnumerateFiles(_backupDirectory, FilePrefix + "*" + FileExtension + ".tmp"))
+        {
+            File.Delete(leftover);
+        }
     }
 
     private void Prune()
