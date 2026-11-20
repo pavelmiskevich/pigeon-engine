@@ -80,6 +80,33 @@ public sealed class SnapshotTests
             snapshot with { RandomStreams = [KeyValuePair.Create(PigeonSimulation.DecisionStreamName, new Pcg32State(1, 2))] }));
     }
 
+    [Fact]
+    public void ForgettingTheSavedJournal_KeepsTheStateAndFreesTheEntries()
+    {
+        // #50: хост забывает подтверждённый хранилищем журнал — память не растёт, жизнь та же.
+        var continuous = Run(6_000);
+        var trimmed = Run(0);
+        var counts = new List<int>();
+        for (var save = 0; save < 6; save++)
+        {
+            RunWithPokes(trimmed, 1_000);
+            var snapshot = trimmed.CreateSnapshot();
+            trimmed.ForgetJournalBefore(snapshot.JournalLength);
+            counts.Add(trimmed.Journal.Count);
+        }
+
+        Assert.Equal(continuous.ComputeStateHash(), trimmed.ComputeStateHash());
+        Assert.Equal(continuous.JournalLength, trimmed.JournalLength);
+        Assert.Equal(trimmed.JournalLength, trimmed.JournalOffset);
+        Assert.All(counts, c => Assert.Equal(0, c));
+        Assert.Throws<ArgumentOutOfRangeException>(() => trimmed.GetJournalFrom(trimmed.JournalOffset - 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => trimmed.ForgetJournalBefore(trimmed.JournalLength + 1));
+
+        // Забыть меньше, чем уже забыто, — ничего не меняет.
+        trimmed.ForgetJournalBefore(0);
+        Assert.Equal(trimmed.JournalLength, trimmed.JournalOffset);
+    }
+
     private static PigeonSimulation Run(int ticks)
     {
         var simulation = new PigeonSimulation(Seed, Options);

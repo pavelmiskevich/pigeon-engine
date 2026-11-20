@@ -147,6 +147,10 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
             }
 
             driver.Pump();
+
+            // Хранения в продукте ещё нет (M1.9): журнал в памяти никому не нужен и рос бы всё
+            // время работы (#50). С хранением граница — подтверждённая базой длина журнала.
+            simulation.ForgetJournalBefore(simulation.JournalLength);
             var state = simulation.Pigeon;
             var body = locomotion.Body;
             var intent = state.Intent;
