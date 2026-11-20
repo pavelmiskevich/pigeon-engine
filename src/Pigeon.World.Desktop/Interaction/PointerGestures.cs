@@ -42,6 +42,10 @@ public sealed record GestureSettings(double DragDistance = 8, double StrokeDista
 /// кнопки — поглаживание, нажать и потянуть — взять в руки. Платформа сообщает события только
 /// над непрозрачной частью голубя, а во время перетаскивания — везде (захват мыши).
 /// </summary>
+/// <remarks>
+/// Мазки считаются только по горизонтали: голубь виден сбоку, и гладят его вдоль спины. Курсор,
+/// ушедший с голубя (<see cref="Leave"/>), начинает счёт мазков заново.
+/// </remarks>
 public sealed class PointerGestures(GestureSettings? settings = null)
 {
     private readonly GestureSettings _settings = settings ?? GestureSettings.Default;
@@ -52,6 +56,7 @@ public sealed class PointerGestures(GestureSettings? settings = null)
     private int _strokes;
     private TimeSpan _lastTurn;
     private TimeSpan? _lastPet;
+    private bool _abandoned;
 
     /// <summary>Голубя несут.</summary>
     public bool IsCarrying => _carrying;
@@ -60,6 +65,7 @@ public sealed class PointerGestures(GestureSettings? settings = null)
     {
         _pressedAt = (x, y);
         _carrying = false;
+        _abandoned = false;
         ResetStrokes();
         return [];
     }
@@ -67,6 +73,11 @@ public sealed class PointerGestures(GestureSettings? settings = null)
     /// <summary>Курсор сдвинулся: с нажатой кнопкой — тащит, без неё — может гладить.</summary>
     public IReadOnlyList<Gesture> Move(double x, double y, TimeSpan now)
     {
+        if (_abandoned)
+        {
+            return [];
+        }
+
         if (_pressedAt is not { } pressed)
         {
             return Stroke(x, y, now);
@@ -90,6 +101,12 @@ public sealed class PointerGestures(GestureSettings? settings = null)
 
     public IReadOnlyList<Gesture> Release(double x, double y, TimeSpan now)
     {
+        if (_abandoned)
+        {
+            _abandoned = false;
+            return [];
+        }
+
         if (_pressedAt is null)
         {
             return [];
@@ -107,7 +124,23 @@ public sealed class PointerGestures(GestureSettings? settings = null)
         var carried = _carrying;
         _pressedAt = null;
         _carrying = false;
+        _abandoned = false;
         return carried ? [new Gesture(GestureKind.Drop, x, y)] : [];
+    }
+
+    /// <summary>Курсор ушёл с голубя: начатые мазки не считаются.</summary>
+    public void Leave() => ResetStrokes();
+
+    /// <summary>
+    /// Голубя выронили из рук без участия пользователя (пропал монитор): нажатие забыто, и до
+    /// отпускания кнопки движение мыши — не жест: ни перенос, ни поглаживание.
+    /// </summary>
+    public void Abandon()
+    {
+        _abandoned = _pressedAt is not null;
+        _pressedAt = null;
+        _carrying = false;
+        ResetStrokes();
     }
 
     private List<Gesture> Stroke(double x, double y, TimeSpan now)

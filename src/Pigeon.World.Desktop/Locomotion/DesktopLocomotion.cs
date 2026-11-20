@@ -56,6 +56,9 @@ public sealed record LandedOnMonitor(PigeonRelocated Change) : LocomotionEvent;
 /// <summary>Поверхность под голубем исчезла, и он падает — хост сообщает симуляции потерю опоры.</summary>
 public sealed record FootingGone(DisplacementReason Reason) : LocomotionEvent;
 
+/// <summary>Голубь выпал из рук: пропал монитор, пока его несли. Жест переноса окончен (#53).</summary>
+public sealed record HoldBroken : LocomotionEvent;
+
 /// <summary>Скорости и времена локомоции в логических пикселях экрана (при масштабе 100 %).</summary>
 /// <param name="WalkSpeed">Скорость шага: длина шага рисунка × размер на экране / цикл walk (ADR-0023).</param>
 /// <param name="SizeOnScreen">Логический пиксель рисунка на экране при масштабе 100 %.</param>
@@ -216,13 +219,33 @@ public sealed class DesktopLocomotion
         }
     }
 
-    /// <summary>Голубя гладят: он замирает на <paramref name="duration"/>, потом продолжает.</summary>
+    /// <summary>
+    /// Голубя гладят: он замирает на <paramref name="duration"/> после последнего поглаживания,
+    /// потом продолжает. Новое поглаживание продлевает паузу, а не ставит в очередь ещё одну.
+    /// </summary>
     public void Settle(TimeSpan duration)
     {
-        if (!Body.IsAirborne && _step is not FlightStep)
+        if (Body.IsAirborne || _step is FlightStep)
         {
-            Interject(new PauseStep(duration));
+            return;
         }
+
+        if (_step is PauseStep { Petted: true })
+        {
+            _step = new PauseStep(duration, Petted: true);
+            _stepStarted = _lastUpdate;
+            return;
+        }
+
+        // Остаток прерванной паузы от поглаживания (тычок посреди неё) уже не нужен.
+        var rest = _steps.Where(step => step is not PauseStep { Petted: true }).ToArray();
+        _steps.Clear();
+        foreach (var step in rest)
+        {
+            _steps.Enqueue(step);
+        }
+
+        Interject(new PauseStep(duration, Petted: true));
     }
 
     /// <summary>
@@ -291,6 +314,11 @@ public sealed class DesktopLocomotion
         var events = new List<LocomotionEvent>();
         if (changes.OfType<PigeonDisplaced>().LastOrDefault() is { } displaced)
         {
+            if (IsHeld)
+            {
+                events.Add(new HoldBroken());
+            }
+
             Abort();
             if (displaced.To is { } to && _world.HomeSurface(to) is { } home)
             {
@@ -523,12 +551,23 @@ public sealed class DesktopLocomotion
         return false;
     }
 
-    /// <summary>Вставляет шаг перед текущим: текущий продолжится после него.</summary>
+    /// <summary>
+    /// Вставляет шаг перед текущим: текущий продолжится после него. Прерванная пауза продолжится
+    /// с того места, где её прервали, а не сначала.
+    /// </summary>
     private void Interject(Step step)
     {
         var rest = _steps.ToArray();
         _steps.Clear();
-        if (_step is { } current)
+        if (_step is PauseStep pause)
+        {
+            var left = pause.Duration - (_lastUpdate - _stepStarted);
+            if (left > TimeSpan.Zero)
+            {
+                _steps.Enqueue(pause with { Duration = left });
+            }
+        }
+        else if (_step is { } current)
         {
             _steps.Enqueue(current);
         }
@@ -575,7 +614,8 @@ public sealed class DesktopLocomotion
 
     /// <summary>
     /// Голубь падает на <paramref name="landing"/>: с верха монитора, если его монитор пропал, или
-    /// с места, где исчезла опора. Падение — полёт без взлёта, с посадкой.
+    /// с места, где исчезла опора или где его отпустили. Падение — полёт без взлёта, с посадкой; у
+    /// края поверхности голубь смещается к допустимой точке по пути вниз, а не рывком (#53).
     /// </summary>
     private void Fall(Surface landing, TimeSpan now, bool fromTop)
     {
@@ -584,11 +624,14 @@ public sealed class DesktopLocomotion
         var x = fromTop
             ? landing.Left + ((landing.Right - landing.Left) * 0.78)
             : Math.Clamp(Body.X, landing.Left + margin, landing.Right - margin);
+        var from = fromTop ? x : Body.X;
         var y = fromTop ? monitor.Bounds.Y + (80 * monitor.Scale) : Math.Min(Body.Y, landing.Y);
-        Body = Body with { X = x, Y = y, Monitor = landing.Monitor, Gait = Gait.Fly, GaitStarted = now };
+        Body = Body with { X = from, Y = y, Monitor = landing.Monitor, Gait = Gait.Fly, GaitStarted = now };
         _surface = null;
         var drop = Math.Max(1, landing.Y - y);
-        _steps.Enqueue(new FlightStep([new ArcLeg((x, y), (x, (y + landing.Y) / 2), (x, landing.Y), FlightTime(drop, monitor.Scale))], landing, SkipTakeOff: true));
+
+        // Контрольная точка над местом посадки: вбок голубь уходит в начале падения, вниз — в конце.
+        _steps.Enqueue(new FlightStep([new ArcLeg((from, y), (x, y), (x, landing.Y), FlightTime(drop, monitor.Scale))], landing, SkipTakeOff: true));
     }
 
     private void Abort()
@@ -776,7 +819,8 @@ public sealed class DesktopLocomotion
 
     private sealed record WalkStep(double TargetX) : Step;
 
-    private sealed record PauseStep(TimeSpan Duration) : Step;
+    /// <param name="Petted">Пауза от поглаживания: следующее поглаживание её продлевает.</param>
+    private sealed record PauseStep(TimeSpan Duration, bool Petted = false) : Step;
 
     private sealed record HopStep : Step;
 
