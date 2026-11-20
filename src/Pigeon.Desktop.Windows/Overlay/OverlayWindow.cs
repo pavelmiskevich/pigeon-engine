@@ -360,7 +360,11 @@ public static class MessageLoop
         return true;
     }
 
-    /// <summary>Спит до <paramref name="timeout"/> или до первого сообщения — что раньше.</summary>
+    /// <summary>
+    /// Спит до <paramref name="timeout"/> или до первого сообщения — что раньше. Отрицательный
+    /// интервал считается нулевым: вызывающий сам следит, чтобы не просыпаться в прошлом, иначе
+    /// цикл крутится без пауз (#48, см. <c>FramePacing</c>).
+    /// </summary>
     public static void Wait(TimeSpan timeout)
     {
         var milliseconds = (uint)Math.Clamp(timeout.TotalMilliseconds, 0, 10_000);

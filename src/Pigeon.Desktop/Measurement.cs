@@ -5,7 +5,8 @@ namespace Pigeon.Desktop;
 
 /// <summary>
 /// Замер бюджетов ТЗ §37 в продукте (M1.4) — так же, как в прототипах S0.2 и S0.8: разогрев 3 с,
-/// покой 15 с (голубь сидит, кадры по клипу), движение 15 с (клип walk, 60 кадров в секунду).
+/// покой 15 с (голубь сидит, кадры по клипу), движение 15 с (клип walk, 60 кадров в секунду),
+/// спрятан 15 с (окно скрыто, как после «Скрыть на час», голубь стоит — кадров нет, #48).
 /// CPU — в процентах одного ядра и всего процессора.
 /// </summary>
 internal sealed class Measurement(string outputPath)
@@ -26,8 +27,11 @@ internal sealed class Measurement(string outputPath)
     /// <summary>Фаза «движение»: голубь ходит на месте с частотой 60 кадров в секунду.</summary>
     public bool Moving => _phase == "moving";
 
-    /// <summary>Разогрев и покой: голубь стоит на месте, что бы ни выбрал ИИ.</summary>
-    public bool Resting => _phase is "warmup" or "idle";
+    /// <summary>Фаза «спрятан»: окна голубя нет на экране.</summary>
+    public bool Hidden => _phase == "hidden";
+
+    /// <summary>Разогрев, покой и «спрятан»: голубь стоит на месте, что бы ни выбрал ИИ.</summary>
+    public bool Resting => _phase is "warmup" or "idle" or "hidden";
 
     public bool Finished { get; private set; }
 
@@ -63,8 +67,12 @@ internal sealed class Measurement(string outputPath)
                 End("idle", now);
                 Begin("moving", now);
                 break;
-            case "moving" when now >= Warmup + PhaseLength + PhaseLength:
+            case "moving" when now >= Warmup + (2 * PhaseLength):
                 End("moving", now);
+                Begin("hidden", now);
+                break;
+            case "hidden" when now >= Warmup + (3 * PhaseLength):
+                End("hidden", now);
                 foreach (var (key, value) in details())
                 {
                     _results[key] = value;
