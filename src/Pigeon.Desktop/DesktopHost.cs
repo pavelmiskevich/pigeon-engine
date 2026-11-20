@@ -106,7 +106,7 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                     simulation.Submit(new FootingLost(displaced.Reason));
                 }
 
-                Report(locomotion.OnWorldChanged(changes, now), simulation);
+                Report(locomotion.OnWorldChanged(changes, now), simulation, gestures);
             }
 
             while (pointer.TryDequeue(out var input))
@@ -116,7 +116,8 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                     Interact(gesture, locomotion, simulation, now, ref petted);
                 }
 
-                if (input.Action == PointerAction.RightUp)
+                // Пока голубя несут, меню не открывается: модальное меню отняло бы захват мыши (#53).
+                if (input.Action == PointerAction.RightUp && !gestures.IsCarrying)
                 {
                     MenuItem?[] items = [new MenuItem(MenuHide, "Скрыть на час"), null, new MenuItem(MenuQuit, "Выход")];
                     switch (PopupMenu.Show(pigeon.Handle, input.X, input.Y, items))
@@ -160,7 +161,7 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
             else
             {
                 locomotion.Execute(state.Intent, state.IntentTarget, state.IntentStartedTick);
-                Report(locomotion.Update(now), simulation);
+                Report(locomotion.Update(now), simulation, gestures);
                 body = locomotion.Body;
             }
 
@@ -265,8 +266,15 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         PointerAction.LeftDown => gestures.Press(input.X, input.Y, now),
         PointerAction.LeftUp => gestures.Release(input.X, input.Y, now),
         PointerAction.CaptureLost => gestures.Cancel(input.X, input.Y),
+        PointerAction.Leave => Left(gestures),
         _ => [],
     };
+
+    private static IReadOnlyList<Gesture> Left(PointerGestures gestures)
+    {
+        gestures.Leave();
+        return [];
+    }
 
     /// <summary>
     /// Жест — в мир и в симуляцию: мир сразу показывает реакцию тела, симуляция записывает
@@ -308,8 +316,11 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         }
     }
 
-    /// <summary>События локомоции — в симуляцию: результат исполнения и потеря опоры.</summary>
-    private static void Report(IReadOnlyList<LocomotionEvent> events, PigeonSimulation simulation)
+    /// <summary>
+    /// События локомоции — в симуляцию: результат исполнения и потеря опоры. Голубь, выпавший из
+    /// рук, заканчивает жест переноса: в журнале у <c>UserPickedUp</c> есть пара (#53).
+    /// </summary>
+    private static void Report(IReadOnlyList<LocomotionEvent> events, PigeonSimulation simulation, PointerGestures gestures)
     {
         foreach (var e in events)
         {
@@ -320,6 +331,10 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                     break;
                 case FootingGone gone:
                     simulation.Submit(new FootingLost(gone.Reason));
+                    break;
+                case HoldBroken:
+                    gestures.Abandon();
+                    simulation.Submit(new UserDropped());
                     break;
             }
         }

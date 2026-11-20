@@ -27,6 +27,8 @@ public sealed class OverlayWindow : IDisposable
     private const uint WmLButtonUp = 0x0202;
     private const uint WmRButtonUp = 0x0205;
     private const uint WmCaptureChanged = 0x0215;
+    private const uint WmMouseLeave = 0x02A3;
+    private const uint TmeLeave = 0x0002;
     private const int MaNoActivate = 3;
     private const int SwShowNoActivate = 4;
     private const uint UlwAlpha = 2;
@@ -43,6 +45,7 @@ public sealed class OverlayWindow : IDisposable
     private IntPtr _bitmap;
     private bool _disposed;
     private bool _pressed;
+    private bool _trackingLeave;
 
     /// <param name="className">Класс окна: по нему окно узнаётся в пробах и при отладке.</param>
     /// <param name="handCursor">Над окном курсор — рука: голубя можно погладить и взять.</param>
@@ -188,6 +191,18 @@ public sealed class OverlayWindow : IDisposable
         }
     }
 
+    /// <summary>Просит систему сообщить, когда курсор уйдёт с окна (<c>WM_MOUSELEAVE</c>): сообщение одноразовое.</summary>
+    private void TrackLeave()
+    {
+        if (_trackingLeave)
+        {
+            return;
+        }
+
+        var info = new TrackMouseEventInfo { Size = (uint)Marshal.SizeOf<TrackMouseEventInfo>(), Flags = TmeLeave, Window = Handle };
+        _trackingLeave = TrackMouseEvent(ref info);
+    }
+
     private static IntPtr WindowProcedure(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
     {
         switch (message)
@@ -218,7 +233,12 @@ public sealed class OverlayWindow : IDisposable
                 overlay.Raise(PointerAction.CaptureLost);
                 return IntPtr.Zero;
             case WmMouseMove when Windows.TryGetValue(window, out var overlay):
+                overlay.TrackLeave();
                 overlay.Raise(overlay._pressed ? PointerAction.Drag : PointerAction.Hover);
+                return IntPtr.Zero;
+            case WmMouseLeave when Windows.TryGetValue(window, out var overlay):
+                overlay._trackingLeave = false;
+                overlay.Raise(PointerAction.Leave);
                 return IntPtr.Zero;
             case WmRButtonUp when Windows.TryGetValue(window, out var overlay):
                 overlay.Raise(PointerAction.RightUp);
@@ -249,6 +269,9 @@ public enum PointerAction
     CaptureLost = 4,
 
     RightUp = 5,
+
+    /// <summary>Курсор ушёл с окна.</summary>
+    Leave = 6,
 }
 
 /// <param name="X">Курсор, физические пиксели виртуального экрана.</param>

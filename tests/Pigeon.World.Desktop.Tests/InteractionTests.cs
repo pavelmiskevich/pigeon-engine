@@ -386,6 +386,151 @@ public sealed class InteractionTests
         Assert.True(locomotion.Body.X < 2300 - (300 * Scale));
     }
 
+    [Fact]
+    public void PettingOnAndOn_KeepsThePigeonStillOnlyForAPauseAfterTheLastStroke()
+    {
+        // #53: каждое «погладил» продлевает паузу, а не ставит в очередь ещё одну.
+        var (_, locomotion) = Create(FakeDesktop.LaptopOnly());
+        var run = new Run(locomotion);
+        locomotion.Execute(IntentKind.Wander, null, 1);
+        run.For(Frame);
+        var pause = TimeSpan.FromSeconds(2.5);
+        var lastPet = TimeSpan.Zero;
+
+        // Гладят 12 секунд: «погладил» раз в 1,5 с.
+        for (var i = 0; i < 8; i++)
+        {
+            locomotion.Settle(pause);
+            lastPet = run.Now;
+            run.For(TimeSpan.FromSeconds(1.5));
+        }
+
+        run.For(TimeSpan.FromSeconds(4));
+
+        var moved = run.Bodies.Select((b, i) => (b.Gait, Time: Frame * (i + 1))).First(b => b.Time > lastPet && b.Gait is Gait.Walk or Gait.Hop).Time;
+        Assert.InRange(moved - lastPet, pause, pause + (3 * Frame));
+    }
+
+    [Fact]
+    public void Poke_DuringAPause_ResumesWhatIsLeftOfIt()
+    {
+        var (_, locomotion) = Create(FakeDesktop.LaptopOnly());
+        var run = new Run(locomotion);
+        locomotion.Execute(IntentKind.Wander, null, 1);
+        run.For(Frame);
+        locomotion.Settle(TimeSpan.FromSeconds(2.5));
+        run.For(TimeSpan.FromSeconds(2));
+
+        locomotion.Flinch();
+        var poked = run.Now;
+        run.For(TimeSpan.FromSeconds(4));
+
+        // Подскок, затем остаток паузы (0,5 с), а не все 2,5 с заново.
+        var hop = LocomotionSettings.Default.Hop;
+        var moved = run.Bodies.Select((b, i) => (b.Gait, Time: Frame * (i + 1))).First(b => b.Time > poked + hop + Frame && b.Gait is Gait.Walk or Gait.Hop).Time;
+        Assert.InRange(moved - poked, hop + TimeSpan.FromSeconds(0.5), hop + TimeSpan.FromSeconds(0.5) + (3 * Frame));
+    }
+
+    [Fact]
+    public void PigeonDroppedAtTheEdge_FallsFromWhereItWasReleased()
+    {
+        var (_, locomotion) = Create(FakeDesktop.LaptopOnly());
+        var run = new Run(locomotion);
+        run.For(Frame);
+        locomotion.PickUp(locomotion.Body.X, locomotion.Body.Y - 30, run.Now);
+        locomotion.Carry(5, Floor - 330);
+
+        locomotion.Drop(run.Now);
+        run.For(Frame);
+        var first = locomotion.Body;
+        run.For(TimeSpan.FromSeconds(3));
+
+        Assert.Equal(5, first.X, 1.0);
+        Assert.True(locomotion.Body.X > 5 + 30, $"сел у {locomotion.Body.X}");
+        Assert.Equal((Gait.Stand, Floor), (locomotion.Body.Gait, locomotion.Body.Y));
+    }
+
+    [Fact]
+    public void MonitorGoneWhileHeld_LetsThePigeonGoWithAnEvent()
+    {
+        var desktop = new FakeDesktop { Topology = FakeDesktop.TwoMonitors() };
+        var world = new DesktopWorld(desktop, FakeDesktop.FullProbe());
+        world.Refresh();
+        var locomotion = new DesktopLocomotion(world, new Pcg32(1, 2));
+        var run = new Run(locomotion);
+        run.For(Frame);
+        locomotion.PickUp(locomotion.Body.X, locomotion.Body.Y - 30, run.Now);
+        locomotion.Carry(3500, 600);
+        world.MovePigeonTo(FakeDesktop.External);
+
+        desktop.Topology = FakeDesktop.LaptopOnly();
+        var events = locomotion.OnWorldChanged(world.Refresh(), run.Now);
+
+        Assert.Contains(events, e => e is HoldBroken);
+        Assert.False(locomotion.IsHeld);
+    }
+
+    [Fact]
+    public void StrokesDoNotSurviveTheCursorLeaving()
+    {
+        var gestures = new PointerGestures();
+        var now = TimeSpan.Zero;
+
+        // Две смены направления — до «погладил» не хватает одной.
+        foreach (var x in new[] { 110, 100, 110, 100 })
+        {
+            now += TimeSpan.FromMilliseconds(100);
+            Assert.Empty(gestures.Move(x, 50, now));
+        }
+
+        // Курсор ушёл с голубя влево и вернулся справа — это не третий мазок.
+        gestures.Leave();
+        now += TimeSpan.FromMilliseconds(100);
+        Assert.Empty(gestures.Move(140, 50, now));
+        now += TimeSpan.FromMilliseconds(100);
+        Assert.Empty(gestures.Move(130, 50, now));
+    }
+
+    [Fact]
+    public void StrokesExpireWithoutMovement()
+    {
+        var gestures = new PointerGestures();
+        var now = TimeSpan.Zero;
+        var x = 100.0;
+        foreach (var shift in new[] { 10, -10, 10 })
+        {
+            now += TimeSpan.FromMilliseconds(100);
+            x += shift;
+            gestures.Move(x, 50, now);
+        }
+
+        // Курсор замер дольше окна мазка: следующая смена направления начинает счёт заново.
+        now += TimeSpan.FromSeconds(1);
+        Assert.Empty(gestures.Move(x - 10, 50, now));
+        now += TimeSpan.FromMilliseconds(100);
+        Assert.Empty(gestures.Move(x, 50, now));
+    }
+
+    [Fact]
+    public void AbandonedPress_IgnoresTheRestOfTheDrag()
+    {
+        // #53: голубя выронили из рук (пропал монитор) — дальнейшее движение с кнопкой не жест.
+        var gestures = new PointerGestures();
+        gestures.Press(100, 100, TimeSpan.Zero);
+        gestures.Move(200, 100, TimeSpan.FromMilliseconds(50));
+
+        gestures.Abandon();
+
+        Assert.False(gestures.IsCarrying);
+        for (var i = 0; i < 20; i++)
+        {
+            Assert.Empty(gestures.Move(200 + (i % 2 == 0 ? 20 : -20), 100, TimeSpan.FromMilliseconds(100 + (100 * i))));
+        }
+
+        Assert.Empty(gestures.Release(200, 100, TimeSpan.FromSeconds(3)));
+        Assert.Equal([new Gesture(GestureKind.Poke, 100, 100)], [.. gestures.Press(100, 100, TimeSpan.FromSeconds(4)), .. gestures.Release(100, 100, TimeSpan.FromSeconds(4.1))]);
+    }
+
     private static List<Gait> Phases(IEnumerable<Gait> gaits)
     {
         var phases = new List<Gait>();
