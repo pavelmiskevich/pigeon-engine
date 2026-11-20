@@ -43,4 +43,54 @@ public sealed class BackupRotatorTests
         Assert.Equal("pigeon-20261010-093000.db", backups[0]);
         Assert.Equal("pigeon-20261004-093000.db", backups[^1]);
     }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("empty")]
+    [InlineData("blank")]
+    public async Task NoPetDatabase_MakesNoBackupAndKeepsTheOldOnes(string source)
+    {
+        // #59: несуществующая, нулевая или пустая (без схемы) база не копируется, и ротация не
+        // вытесняет настоящие копии пустыми.
+        using var db = new TestDatabase();
+        await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
+        var backups = Path.Combine(db.Directory, "backups");
+        var real = new SqliteBackupRotator(db.Path, backups);
+        for (var day = 0; day < SqliteBackupRotator.DefaultKeep; day++)
+        {
+            real.CreateBackup(Start.AddDays(day));
+        }
+
+        var before = real.ListBackups();
+        var path = Path.Combine(db.Directory, source + ".db");
+        if (source == "empty")
+        {
+            await File.WriteAllBytesAsync(path, [], TestContext.Current.CancellationToken);
+        }
+        else if (source == "blank")
+        {
+            TestDatabase.Query(path, "PRAGMA user_version;");
+        }
+
+        var rotator = new SqliteBackupRotator(path, backups);
+
+        Assert.ThrowsAny<IOException>(() => rotator.CreateBackup(Start.AddDays(30)));
+        Assert.Equal(before, rotator.ListBackups());
+        Assert.Empty(Directory.EnumerateFiles(backups, "*.tmp"));
+        Assert.Equal(source != "missing", File.Exists(path));
+    }
+
+    [Fact]
+    public async Task LeftoverTemporaryFiles_AreRemovedByTheNextBackup()
+    {
+        using var db = new TestDatabase();
+        await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
+        var backups = Path.Combine(db.Directory, "backups");
+        Directory.CreateDirectory(backups);
+        await File.WriteAllTextAsync(Path.Combine(backups, "pigeon-20261001-000000.db.tmp"), "обрыв", TestContext.Current.CancellationToken);
+
+        new SqliteBackupRotator(db.Path, backups).CreateBackup(Start);
+
+        Assert.Empty(Directory.EnumerateFiles(backups, "*.tmp"));
+    }
 }
