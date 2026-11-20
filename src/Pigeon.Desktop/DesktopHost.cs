@@ -131,7 +131,7 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                 }
             }
 
-            var hidden = now < hiddenUntil;
+            var hidden = now < hiddenUntil || measurement is { Hidden: true };
             if (cursorKnown && measurement is null)
             {
                 var seen = locomotion.Body;
@@ -242,17 +242,23 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                 }
             }
 
-            if (animating)
+            // В движении кадры идут по композиции DWM: таймер ожидания слишком груб для 60 Гц. На
+            // месте и без кадра — спать до смены кадра или опроса экрана. Отдельно ради тика
+            // симуляции не просыпаемся: она досчитает пропущенные шаги при следующем пробуждении.
+            var pace = FramePacing.Next(
+                hasFrame: frame is not null,
+                animating,
+                nextChange,
+                nextRefresh: lastRefresh + WorldRefresh,
+                pollAt: now + (world.Cursor.IsNear ? CursorNearSleep : LongestSleep),
+                now);
+            if (pace.AwaitComposition)
             {
-                // В движении кадры идут по композиции DWM: таймер ожидания слишком груб для 60 Гц.
                 MessageLoop.WaitForComposition();
                 continue;
             }
 
-            // На месте — спать до смены кадра или опроса экрана. Отдельно ради тика симуляции не
-            // просыпаемся: она досчитает пропущенные шаги при следующем пробуждении.
-            var wake = Min(nextChange, lastRefresh + WorldRefresh, now + (world.Cursor.IsNear ? CursorNearSleep : LongestSleep));
-            MessageLoop.Wait(wake - clock.Elapsed);
+            MessageLoop.Wait(pace.Wake - clock.Elapsed);
         }
 
         return 0;
@@ -324,6 +330,4 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
             }
         }
     }
-
-    private static TimeSpan Min(TimeSpan a, TimeSpan b, TimeSpan c) => a < b ? (a < c ? a : c) : (b < c ? b : c);
 }
