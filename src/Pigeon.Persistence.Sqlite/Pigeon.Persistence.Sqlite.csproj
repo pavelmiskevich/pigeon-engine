@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Pigeon.Persistence.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Pigeon.Common/Pigeon.Common.csproj" />
     <ProjectReference Include="../Pigeon.Core/Pigeon.Core.csproj" />
     <ProjectReference Include="../Pigeon.Simulation/Pigeon.Simulation.csproj" />

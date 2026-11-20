@@ -246,6 +246,39 @@ public sealed class PigeonSimulation
     }
 
     /// <summary>
+    /// Воспроизводит симуляцию от снимка по хвосту журнала — записям с позиции
+    /// <see cref="SimulationSnapshot.JournalLength"/> — до тика <paramref name="untilTick"/>. Так
+    /// воспроизводят жизнь, когда журнал до снимка уже усечён (#17). Ожидающие входы снимка
+    /// входят в хвост журнала и отдельно не применяются.
+    /// </summary>
+    public static PigeonSimulation ReplayFrom(
+        SimulationSnapshot snapshot,
+        IEnumerable<JournalEntry> tail,
+        long untilTick,
+        BehaviorConfig? behavior = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(tail);
+        ArgumentOutOfRangeException.ThrowIfLessThan(untilTick, snapshot.Tick);
+
+        var simulation = Restore(snapshot with { Pending = [] }, behavior);
+        var previousTick = snapshot.Tick + 1;
+        foreach (var entry in tail)
+        {
+            if (entry.Tick < previousTick)
+            {
+                throw new ArgumentException($"Хвост журнала не продолжает снимок тика {snapshot.Tick}: запись для тика {entry.Tick}.", nameof(tail));
+            }
+
+            previousTick = entry.Tick;
+            simulation._pending.Enqueue(entry);
+        }
+
+        simulation.RunTicks(untilTick - snapshot.Tick);
+        return simulation;
+    }
+
+    /// <summary>
     /// Подключает мир, который симуляция будет опрашивать в тиках решений; <c>null</c> — отключает.
     /// В состояние не входит: после восстановления мир подключается заново.
     /// </summary>

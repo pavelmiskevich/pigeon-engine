@@ -37,7 +37,7 @@ public sealed class ConcurrencyTests
         using var db = new TestDatabase();
         await File.WriteAllTextAsync(db.Path, new string('x', 4096), TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<SqliteException>(async () => await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<PetStoreCorruptedException>(async () => await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken));
 
         File.Delete(db.Path);
         Assert.False(File.Exists(db.Path));
