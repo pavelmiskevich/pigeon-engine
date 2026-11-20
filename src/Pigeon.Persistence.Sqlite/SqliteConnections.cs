@@ -18,14 +18,24 @@ internal static class SqliteConnections
         }.ToString();
 
         var connection = new SqliteConnection(connectionString);
-        connection.Open();
+        try
+        {
+            connection.Open();
 
-        // WAL переживает аварийное завершение процесса без порчи файла; FULL — подтверждённая
-        // транзакция не теряется и при отключении питания. Пишем редко, цена не важна.
-        Execute(connection, "PRAGMA journal_mode = WAL;");
-        Execute(connection, "PRAGMA synchronous = FULL;");
-        Execute(connection, "PRAGMA busy_timeout = 5000;");
-        return connection;
+            // Ожидание блокировки — первым: переход в WAL сам требует блокировки файла (#60).
+            // WAL переживает аварийное завершение процесса без порчи файла; FULL — подтверждённая
+            // транзакция не теряется и при отключении питания. Пишем редко, цена не важна.
+            Execute(connection, "PRAGMA busy_timeout = 5000;");
+            Execute(connection, "PRAGMA journal_mode = WAL;");
+            Execute(connection, "PRAGMA synchronous = FULL;");
+            return connection;
+        }
+        catch
+        {
+            // Иначе файл базы остаётся открытым процессом: его не скопировать и не заменить (#60).
+            connection.Dispose();
+            throw;
+        }
     }
 
     public static void Execute(SqliteConnection connection, string sql, SqliteTransaction? transaction = null)

@@ -61,7 +61,9 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
         var payload = SnapshotSerializer.Serialize(snapshot);
 
         using var connection = SqliteConnections.Open(_databasePath);
-        using var transaction = connection.BeginTransaction();
+
+        // BEGIN IMMEDIATE: блокировка записи берётся сразу, до чтения длины журнала (#61).
+        using var transaction = connection.BeginTransaction(deferred: false);
 
         AppendJournal(connection, transaction, petId, firstPosition, newJournalEntries);
 
@@ -117,7 +119,7 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
         cancellationToken.ThrowIfCancellationRequested();
 
         using var connection = SqliteConnections.Open(_databasePath);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         AppendJournal(connection, transaction, petId, firstPosition, entries);
         transaction.Commit();
         return ValueTask.CompletedTask;
