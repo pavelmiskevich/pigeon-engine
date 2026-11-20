@@ -67,24 +67,30 @@ public sealed class SqliteSchemaMigrator : ISchemaMigrator
     public ValueTask MigrateAsync(CancellationToken cancellationToken)
     {
         using var connection = SqliteConnections.Open(_databasePath);
-        var version = SqliteConnections.Scalar<int>(connection, "PRAGMA user_version;");
 
-        if (version > LatestVersion)
-        {
-            throw new NotSupportedException(
-                $"База создана более новой версией приложения (схема {version}, поддерживается до {LatestVersion}).");
-        }
-
-        for (var next = version + 1; next <= LatestVersion; next++)
+        while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var transaction = connection.BeginTransaction();
-            SqliteConnections.Execute(connection, Migrations[next - 1], transaction);
-            SqliteConnections.Execute(connection, $"PRAGMA user_version = {next};", transaction);
+            // Версия читается внутри write-транзакции (BEGIN IMMEDIATE): другой процесс, открывший
+            // ту же базу одновременно, не применит ту же миграцию второй раз (#61).
+            using var transaction = connection.BeginTransaction(deferred: false);
+            var version = SqliteConnections.Scalar<int>(connection, "PRAGMA user_version;", transaction);
+            if (version > LatestVersion)
+            {
+                throw new NotSupportedException(
+                    $"База создана более новой версией приложения (схема {version}, поддерживается до {LatestVersion}).");
+            }
+
+            if (version == LatestVersion)
+            {
+                transaction.Commit();
+                return ValueTask.CompletedTask;
+            }
+
+            SqliteConnections.Execute(connection, Migrations[version], transaction);
+            SqliteConnections.Execute(connection, $"PRAGMA user_version = {version + 1};", transaction);
             transaction.Commit();
         }
-
-        return ValueTask.CompletedTask;
     }
 }
