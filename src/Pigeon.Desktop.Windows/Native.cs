@@ -48,6 +48,15 @@ internal static class Native
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct TrackMouseEventInfo
+    {
+        public uint Size;
+        public uint Flags;
+        public IntPtr Window;
+        public uint HoverTime;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct MonitorInfo
     {
         public int Size;
@@ -377,6 +386,10 @@ internal static class Native
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetCapture();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool TrackMouseEvent(ref TrackMouseEventInfo info);
 
     [DllImport("user32.dll")]
     public static extern IntPtr SetCursor(IntPtr cursor);
