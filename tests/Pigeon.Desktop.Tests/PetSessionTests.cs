@@ -1,3 +1,4 @@
+using Pigeon.Core;
 using Pigeon.Desktop;
 using Pigeon.Simulation;
 
@@ -128,6 +129,66 @@ public sealed class PetSessionTests : IDisposable
     }
 
     [Fact]
+    public async Task NewLifeEvent_IsLogged_AndSavedAtOnce()
+    {
+        var session = await Open();
+        session.Simulation.Submit(new UserPoked());
+        session.Simulation.RunTicks(1);
+
+        session.Tick(); // минута не прошла: сохраняет только новая запись хроники
+        await session.FlushAsync();
+        await session.CloseAsync(saveFinal: false); // авария
+        var after = await Open();
+
+        Assert.Contains("INFO В хронике: впервые встретил внимание человека.", Logged(), StringComparison.Ordinal);
+        Assert.Contains(after.Simulation.LifeStory, e => e.Kind == LifeEventKind.FirstInteraction);
+        await after.CloseAsync(saveFinal: false);
+    }
+
+    [Fact]
+    public async Task RestoredStory_IsNotLoggedAgain()
+    {
+        var first = await Open();
+        first.Simulation.Submit(new UserPoked());
+        first.Simulation.RunTicks(1);
+        first.Tick();
+        await first.CloseAsync(saveFinal: true);
+
+        var second = await Open();
+        second.Simulation.RunTicks(10);
+        second.Tick();
+        await second.CloseAsync(saveFinal: true);
+
+        Assert.Equal(1, CountOf(Logged(), "В хронике:"));
+        Assert.DoesNotContain("В хронике: родился.", Logged(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LifeEventLines_HaveNoPlaceKeys()
+    {
+        var session = await Open();
+        var simulation = session.Simulation;
+        simulation.Pigeon.LifeStory.Record(LifeEventKind.FirstVisitToMonitor, new PlaceKey(@"desktop/\.\DISPLAY2"), simulation.Tick, simulation.LifeSeconds);
+
+        session.Tick();
+        await session.CloseAsync(saveFinal: false);
+
+        var logged = Logged();
+        Assert.Contains("INFO В хронике: впервые побывал на этом мониторе.", logged, StringComparison.Ordinal);
+        Assert.DoesNotContain("desktop/", logged, StringComparison.Ordinal);
+        Assert.DoesNotContain("DISPLAY2", logged, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EveryLifeEventKind_HasAPhrase()
+    {
+        var phrases = Enum.GetValues<LifeEventKind>().Select(PetSession.Phrase).ToList();
+
+        Assert.DoesNotContain("новое событие", phrases);
+        Assert.Equal(phrases.Count, phrases.Distinct().Count());
+    }
+
+    [Fact]
     public async Task ClosingTwice_DoesNothing()
     {
         var session = await Open();
@@ -155,6 +216,17 @@ public sealed class PetSessionTests : IDisposable
     }
 
     private string Logged() => string.Concat(_log.ListFiles().Select(HostLogTests.ReadShared));
+
+    private static int CountOf(string text, string fragment)
+    {
+        var count = 0;
+        for (var at = text.IndexOf(fragment, StringComparison.Ordinal); at >= 0; at = text.IndexOf(fragment, at + fragment.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
 }
 
 /// <summary>Настенные часы, которые идут только по команде теста.</summary>

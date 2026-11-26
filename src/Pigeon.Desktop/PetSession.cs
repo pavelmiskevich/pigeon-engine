@@ -46,6 +46,7 @@ internal sealed class PetSession
     private readonly TimeProvider _clock;
     private readonly PetSessionOptions _options;
     private long _enqueuedLength;
+    private int _storyLength;
     private DateTimeOffset _lastSave;
     private DateTimeOffset _lastBackupCheck;
     private Task _backup = Task.CompletedTask;
@@ -70,6 +71,9 @@ internal sealed class PetSession
         Simulation = simulation;
         Absence = absence;
         _enqueuedLength = simulation.JournalLength;
+
+        // Записи, с которыми голубь родился или восстановлен, уже были: в журнал пишутся только новые.
+        _storyLength = simulation.LifeStory.Count;
 
         _writer = new BackgroundPetWriter(store, identity.Id, options.Writer);
         _writer.Failed += (_, failure) => ReportWriteFailure(failure);
@@ -162,14 +166,20 @@ internal sealed class PetSession
     }
 
     /// <summary>
-    /// Вызывается каждый проход цикла хоста: отпускает подтверждённый базой журнал (#50) и, когда
-    /// пора, ставит снимок на запись и проверяет резервную копию.
+    /// Вызывается каждый проход цикла хоста: отпускает подтверждённый базой журнал (#50), пишет в
+    /// журнал хоста новые записи хроники и, когда пора, ставит снимок на запись и проверяет
+    /// резервную копию.
     /// </summary>
     public void Tick()
     {
         ObjectDisposedException.ThrowIf(_closed, this);
 
         Simulation.ForgetJournalBefore(Math.Min(_writer.ConfirmedLength, Simulation.JournalLength));
+
+        if (Simulation.LifeStory.Count > _storyLength)
+        {
+            ReportLifeEvents();
+        }
 
         var now = _clock.GetUtcNow();
         if (now - _lastSave >= _options.SaveEvery || now < _lastSave)
@@ -240,6 +250,36 @@ internal sealed class PetSession
             _log.Warn("Резервная копия не успела завершиться до выхода.");
         }
     }
+
+    /// <summary>
+    /// Новые записи хроники — в журнал хоста и сразу на диск (#33): события редкие, а после аварии
+    /// голубь не должен прожить «впервые» второй раз. В журнал пишется только вид события: в
+    /// ключе места — идентификатор монитора.
+    /// </summary>
+    private void ReportLifeEvents()
+    {
+        var story = Simulation.LifeStory;
+        for (var i = _storyLength; i < story.Count; i++)
+        {
+            _log.Info($"В хронике: {Phrase(story[i].Kind)}.");
+        }
+
+        _storyLength = story.Count;
+        SaveNow();
+    }
+
+    internal static string Phrase(LifeEventKind kind) => kind switch
+    {
+        LifeEventKind.Born => "родился",
+        LifeEventKind.FirstWalk => "впервые прогулялся",
+        LifeEventKind.FirstInteraction => "впервые встретил внимание человека",
+        LifeEventKind.FirstSleep => "впервые уснул",
+        LifeEventKind.FirstAdventure => "впервые отправился исследовать",
+        LifeEventKind.FirstMultiMonitorTransition => "впервые перелетел на другой монитор",
+        LifeEventKind.FirstVisitToMonitor => "впервые побывал на этом мониторе",
+        LifeEventKind.FirstFavoriteTerritory => "у него появился любимый монитор",
+        _ => "новое событие",
+    };
 
     private static string Describe(TimeSpan away) =>
         away < TimeSpan.FromMinutes(2) ? $"{Math.Round(away.TotalSeconds)} с"
