@@ -36,7 +36,8 @@ public sealed class HostLogTests : IDisposable
 
         var text = ReadShared(Assert.Single(log.ListFiles()));
         Assert.Contains("ERROR Хранилище не открылось.", text, StringComparison.Ordinal);
-        Assert.Contains("System.IO.IOException: Не открыть " + LogRedaction.PathMark, text, StringComparison.Ordinal);
+        Assert.Contains("System.IO.IOException: Не открыть " + LogRedaction.PathMark + Environment.NewLine, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("pigeon.db", text, StringComparison.Ordinal);
         Assert.Contains(nameof(Exception_IsWrittenWithTypeAndStack_WithoutPathsOrLineNumbers), text, StringComparison.Ordinal);
         Assert.DoesNotContain("someone", text, StringComparison.Ordinal);
         Assert.DoesNotContain(".cs:line", text, StringComparison.Ordinal);
@@ -54,22 +55,26 @@ public sealed class HostLogTests : IDisposable
     }
 
     [Theory]
-    [InlineData(@"файл C:\Users\me\x.db занят", "файл <путь> занят")]
+    [InlineData(@"файл C:\Users\me\x.db: занят", "файл <путь>: занят")]
+    [InlineData(@"файл C:\Users\me\Мои документы\отчёт Иванова.docx", "файл <путь>")]
+    [InlineData(@"файл ""C:\Program Files\Pigeon\x.dll"" не загружен", @"файл ""<путь>"" не загружен")]
     [InlineData(@"сеть \\server\share\pigeon.db", "сеть <путь>")]
     [InlineData("нет /home/me/.local/share/pigeon.db", "нет <путь>")]
-    [InlineData("нет /Users/me/Library/pigeon.db", "нет <путь>")]
-    [InlineData("тик 42 упал", "тик 42 упал")]
-    public void Scrub_ReplacesPaths(string message, string expected) =>
-        Assert.Equal(expected, LogRedaction.Scrub(message));
+    [InlineData("нет /Users/me/Library/My Pets/pigeon.db", "нет <путь>")]
+    [InlineData("Error: тик 42 упал, a/b не путь", "Error: тик 42 упал, a/b не путь")]
+    [InlineData("/homework не каталог", "/homework не каталог")]
+    public void Scrub_ReplacesWholePaths(string message, string expected) =>
+        Assert.Equal(expected, LogRedaction.Scrub(message, [], userName: null));
 
     [Theory]
-    [InlineData(@"нет C:\Users\Ivan Petrov\AppData\Local\Pigeon\pigeon.db", @"нет <путь>\AppData\Local\Pigeon\pigeon.db")]
-    [InlineData(@"нет c:\users\ivan petrov\x.db", @"нет <путь>\x.db")]
-    [InlineData(@"нет D:\Моё Хранилище\Голубь\pigeon.db", @"нет <путь>\pigeon.db")]
+    [InlineData(@"нет C:\Users\Ivan Petrov\AppData\Local\Pigeon\pigeon.db", "нет <путь>")]
+    [InlineData(@"нет c:\users\ivan petrov\x.db: занят", "нет <путь>: занят")]
+    [InlineData("данные в /opt/Моё Хранилище/Голубь/Секрет/pigeon.db", "данные в <путь>")]
+    [InlineData("данные в /opt/Моё Хранилище/Голубь2/x", "данные в /opt/Моё Хранилище/Голубь2/x")]
     [InlineData("вошёл Ivan Petrov", "вошёл <пользователь>")]
     [InlineData("Ivan Petrovich не тот", "Ivan Petrovich не тот")]
     public void Scrub_RemovesKnownRootsWithSpaces_AndUserName(string message, string expected) =>
-        Assert.Equal(expected, LogRedaction.Scrub(message, [@"D:\Моё Хранилище\Голубь", @"C:\Users\Ivan Petrov"], "Ivan Petrov"));
+        Assert.Equal(expected, LogRedaction.Scrub(message, ["/opt/Моё Хранилище/Голубь", @"C:\Users\Ivan Petrov"], "Ivan Petrov"));
 
     [Fact]
     public void Scrub_RemovesThisMachineProfile()
@@ -80,7 +85,7 @@ public sealed class HostLogTests : IDisposable
         var text = LogRedaction.Scrub($"файл {Path.Combine(profile, "дальше с пробелом", "pigeon.db")} занят");
 
         Assert.DoesNotContain(profile, text, StringComparison.OrdinalIgnoreCase);
-        Assert.StartsWith("файл " + LogRedaction.PathMark, text, StringComparison.Ordinal);
+        Assert.Equal("файл " + LogRedaction.PathMark, text);
     }
 
     [Fact]
