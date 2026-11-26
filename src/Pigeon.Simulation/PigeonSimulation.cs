@@ -505,6 +505,10 @@ public sealed class PigeonSimulation
         }
 
         var relocated = Pigeon.Intent == IntentKind.Relocate;
+
+        // Голубь уже бывал на этой территории — родился на ней или сидел на её местах: запись
+        // территории в памяти появляется только так. Возвращение — не первый визит.
+        var known = relocated && Pigeon.Memory.Entries.Any(e => e.Territory && e.Place == place);
         Remember(place, tick, territory: relocated);
         if (Pigeon.Intent == IntentKind.Explore)
         {
@@ -513,7 +517,10 @@ public sealed class PigeonSimulation
         else if (relocated)
         {
             Chronicle(LifeEventKind.FirstMultiMonitorTransition, null, tick);
-            Chronicle(LifeEventKind.FirstVisitToMonitor, place, tick);
+            if (!known)
+            {
+                Chronicle(LifeEventKind.FirstVisitToMonitor, place, tick);
+            }
         }
     }
 
