@@ -46,6 +46,26 @@ public sealed class SnapshotTests
     }
 
     [Fact]
+    public void NewPigeon_HasTheBornEntry()
+    {
+        var simulation = new PigeonSimulation(1, Options);
+
+        var born = Assert.Single(simulation.Pigeon.LifeStory.Events);
+        Assert.Equal(new LifeEvent("born", LifeEventKind.Born, null, 0, 0, LifeStory.CurrentVersion), born);
+        Assert.Equal(4, SimulationSnapshot.CurrentFormatVersion);
+    }
+
+    [Fact]
+    public void Snapshot_KeepsTheLifeStoryAcrossRestore()
+    {
+        var original = Run(2_000);
+
+        var restored = PigeonSimulation.Restore(original.CreateSnapshot());
+
+        Assert.Equal(original.Pigeon.LifeStory.Events, restored.Pigeon.LifeStory.Events);
+    }
+
+    [Fact]
     public void JournalFrom_ReturnsEntriesAfterAGlobalPosition()
     {
         var original = Run(3_000);

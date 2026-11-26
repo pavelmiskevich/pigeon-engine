@@ -106,7 +106,7 @@ public sealed class UtilityBrainTests
         // Два одинаковых окна: без гистерезиса голубь метался бы между ними.
         var twin = Window with { Id = new AffordanceId(9), PlaceKey = new PlaceKey("poi:window-2") };
         var pigeon = Pigeon(needs: new Needs(0.2, 0.6, 0.1));
-        pigeon.StartIntent(IntentKind.Explore, Window.Id, 0, 1_000);
+        pigeon.StartIntent(IntentKind.Explore, Window.Id, Window.PlaceKey, 0, 1_000);
 
         for (ulong seed = 0; seed < 200; seed++)
         {
@@ -122,7 +122,7 @@ public sealed class UtilityBrainTests
     {
         var twin = Window with { Id = new AffordanceId(9), PlaceKey = new PlaceKey("poi:window-2") };
         var pigeon = Pigeon(needs: new Needs(0.2, 0.8, 0.1));
-        pigeon.StartIntent(IntentKind.Explore, Window.Id, 0, 10);
+        pigeon.StartIntent(IntentKind.Explore, Window.Id, Window.PlaceKey, 0, 10);
 
         var targets = Enumerable.Range(0, 200)
             .Select(seed => Brain.Decide(pigeon, [Window, twin], new IntentCooldowns(), 10, DecisionTrigger.Completed, new Pcg32((ulong)seed, 7)))
@@ -151,7 +151,7 @@ public sealed class UtilityBrainTests
     public void Decide_UsesRandomnessOnlyWhenItHasToChoose()
     {
         var pigeon = Pigeon();
-        pigeon.StartIntent(IntentKind.Wander, null, 0, 1_000);
+        pigeon.StartIntent(IntentKind.Wander, null, null, 0, 1_000);
         var random = new Pcg32(5, 5);
         var before = random.State;
 
