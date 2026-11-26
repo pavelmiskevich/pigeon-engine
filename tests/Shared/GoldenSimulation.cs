@@ -12,6 +12,11 @@ namespace Pigeon.Testing;
 /// Если меняется логика симуляции, хеш законно меняется: новое значение фиксируется в том же
 /// PR с объяснением. Если хеш разошёлся только на одной платформе или в WASM — это нарушение
 /// детерминизма, а не повод обновить эталон.
+/// <para>
+/// M1.9 (#33): в хеш вошли память мест, хроника жизни, место цели намерения и полное время
+/// отсутствия; голубь запоминает насест при первом взгляде на мир, а новизна цели меняет оценку
+/// explore и relocate. Сценарий не менялся.
+/// </para>
 /// </remarks>
 internal static class GoldenSimulation
 {
@@ -22,7 +27,7 @@ internal static class GoldenSimulation
     /// гладят, берут в руки, к нему подходит курсор (M1.6).
     /// </summary>
     public const long Ticks = 36_000;
-    public const ulong ExpectedHash = 0x0308_B2FF_0C74_D149UL;
+    public const ulong ExpectedHash = 0xA575_8C8F_3889_A6F4UL;
 
     public static JournalEntry[] Journal() =>
     [

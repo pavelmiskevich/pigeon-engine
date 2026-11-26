@@ -58,7 +58,11 @@ public static class SnapshotSerializer
             snapshot.Pigeon.IntentTarget?.Value,
             snapshot.Pigeon.IntentEndsTick,
             [.. snapshot.Cooldowns.Select(c => new CooldownDto((int)c.Key, c.Value))],
-            ToDto(snapshot.Affordances));
+            ToDto(snapshot.Affordances),
+            snapshot.Pigeon.IntentPlace?.Value,
+            snapshot.Pigeon.AbsenceSeconds,
+            [.. (snapshot.Pigeon.Memory ?? []).Select(m => new PlaceMemoryDto(m.Place.Value, m.Familiarity, m.LastSeen, m.Visits, m.Territory))],
+            [.. (snapshot.Pigeon.LifeStory ?? []).Select(e => new LifeEventDto(e.Key, (int)e.Kind, e.Place?.Value, e.Tick, e.LifeSeconds, e.Version))]);
 
     private static SimulationSnapshot FromDto(SnapshotDto dto)
     {
@@ -74,7 +78,7 @@ public static class SnapshotSerializer
                 streams, dto.JournalLength, pending);
         }
 
-        if (dto.FormatVersion is not (2 or SimulationSnapshot.CurrentFormatVersion))
+        if (dto.FormatVersion is not (2 or 3 or SimulationSnapshot.CurrentFormatVersion))
         {
             // Неизвестный формат отклоняет SimulationSnapshot.Validate при восстановлении.
             return new SimulationSnapshot(
@@ -87,6 +91,8 @@ public static class SnapshotSerializer
             throw new InvalidDataException("В снимке нет личности, потребностей или настроения.");
         }
 
+        var (memory, story) = MemoryAndStory(dto);
+
         // В формате 2 у намерения не было цели и плана: оно завершается на следующем тике.
         var pigeon = new PigeonStateSnapshot(
             new Personality(p.Curiosity, p.Playfulness, p.Sociability, p.Boldness, p.Calmness, p.Independence, p.Energy),
@@ -95,7 +101,11 @@ public static class SnapshotSerializer
             (IntentKind)dto.Intent,
             dto.IntentStartedTick,
             dto.IntentTarget is { } target ? new AffordanceId(target) : null,
-            dto.IntentEndsTick ?? Math.Max(dto.Tick, dto.IntentStartedTick));
+            dto.IntentEndsTick ?? Math.Max(dto.Tick, dto.IntentStartedTick),
+            Place(dto.IntentPlace),
+            dto.AbsenceSeconds ?? 0,
+            memory,
+            story);
 
         return new SimulationSnapshot(
             SimulationSnapshot.CurrentFormatVersion,
@@ -110,6 +120,46 @@ public static class SnapshotSerializer
             [.. (dto.Cooldowns ?? []).Select(c => KeyValuePair.Create((IntentKind)c.Intent, c.UntilTick))],
             FromDto(dto.Affordances ?? []));
     }
+
+    /// <summary>
+    /// Память и хроника формата 4 — проверенные, как их проверит восстановление: испорченный снимок
+    /// отклоняется при чтении, а не позже. До формата 4 памяти не было, а хроника — одно рождение.
+    /// </summary>
+    private static (IReadOnlyList<PlaceMemoryEntry> Memory, IReadOnlyList<LifeEvent> Story) MemoryAndStory(SnapshotDto dto)
+    {
+        if (dto.FormatVersion < SimulationSnapshot.CurrentFormatVersion)
+        {
+            var born = new LifeStory();
+            born.Record(LifeEventKind.Born, null, 0, 0);
+            return ([], born.Events);
+        }
+
+        if (dto.Memory is null || dto.LifeStory is null)
+        {
+            throw new InvalidDataException("В снимке формата 4 нет памяти мест или хроники.");
+        }
+
+        try
+        {
+            IReadOnlyList<PlaceMemoryEntry> memory = [.. dto.Memory.Select(m =>
+                new PlaceMemoryEntry(new PlaceKey(m.Place), m.Familiarity, m.LastSeen, m.Visits, m.Territory))];
+            IReadOnlyList<LifeEvent> story = [.. dto.LifeStory.Select(e =>
+                new LifeEvent(e.Key, (LifeEventKind)e.Kind, Place(e.Place), e.Tick, e.LifeSeconds, e.Version))];
+            PlaceMemory.FromSnapshot(memory);
+            LifeStory.FromSnapshot(story);
+            ArgumentOutOfRangeException.ThrowIfNegative(dto.AbsenceSeconds ?? 0, nameof(dto.AbsenceSeconds));
+            return (memory, story);
+        }
+        catch (ArgumentException error)
+        {
+            throw new InvalidDataException("Память мест или хроника в снимке испорчены.", error);
+        }
+    }
+
+    private static PlaceKey? Place(string? value) =>
+        value is null ? null
+        : string.IsNullOrWhiteSpace(value) ? throw new InvalidDataException("Пустой ключ места в снимке.")
+        : new PlaceKey(value);
 
     internal static string SerializeAffordances(IReadOnlyList<Affordance> affordances) =>
         JsonSerializer.Serialize(ToDto(affordances), PersistenceJsonContext.Default.IReadOnlyListAffordanceDto);

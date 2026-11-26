@@ -4,8 +4,10 @@ namespace Pigeon.Persistence.Sqlite.Serialization;
 
 /// <summary>
 /// Формат снимка на диске. Отделён от доменного типа, чтобы домен менялся свободно. Поля,
-/// которых не было в форматах 1 и 2, допускают null: так читаются старые снимки.
+/// которых не было в форматах 1–3, допускают null: так читаются старые снимки.
 /// </summary>
+/// <param name="Memory">Память мест (формат 4); в формате 4 обязательна, пусть и пустая.</param>
+/// <param name="LifeStory">Хроника жизни (формат 4); в формате 4 обязательна — в ней всегда есть рождение.</param>
 internal sealed record SnapshotDto(
     int FormatVersion,
     ulong Seed,
@@ -27,7 +29,23 @@ internal sealed record SnapshotDto(
     long? IntentTarget = null,
     long? IntentEndsTick = null,
     IReadOnlyList<CooldownDto>? Cooldowns = null,
-    IReadOnlyList<AffordanceDto>? Affordances = null);
+    IReadOnlyList<AffordanceDto>? Affordances = null,
+    string? IntentPlace = null,
+    long? AbsenceSeconds = null,
+    IReadOnlyList<PlaceMemoryDto>? Memory = null,
+    IReadOnlyList<LifeEventDto>? LifeStory = null);
+
+/// <param name="Familiarity">Знакомство 0..1 на момент <paramref name="LastSeen"/> (секунда жизни голубя).</param>
+internal sealed record PlaceMemoryDto(string Place, double Familiarity, long LastSeen, int Visits, bool Territory);
+
+/// <param name="Kind">Число <c>LifeEventKind</c>.</param>
+internal sealed record LifeEventDto(
+    string Key,
+    int Kind,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Place,
+    long Tick,
+    long LifeSeconds,
+    int Version);
 
 internal sealed record CooldownDto(int Intent, long UntilTick);
 
