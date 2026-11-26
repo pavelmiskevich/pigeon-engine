@@ -202,10 +202,82 @@ internal sealed class HostLog : IDisposable
 internal static partial class LogRedaction
 {
     public const string PathMark = "<путь>";
+    public const string UserMark = "<пользователь>";
 
-    /// <summary>Сообщение без путей Windows (<c>C:\…</c>, <c>\\сервер\…</c>) и Unix (<c>/home/…</c>, <c>/Users/…</c>).</summary>
-    public static string Scrub(string? text) =>
-        string.IsNullOrEmpty(text) ? string.Empty : Paths().Replace(text, PathMark);
+    private static readonly Lock RootsLock = new();
+    private static string[] _roots = KnownRoots();
+
+    /// <summary>
+    /// Сообщение без путей и имени пользователя. Сначала заменяются известные корни — профиль,
+    /// AppData, временный каталог, каталоги из <see cref="Protect"/>, — целиком, вместе с
+    /// пробелами в них; затем всё, что похоже на путь Windows (<c>C:\…</c>, <c>\\сервер\…</c>) или
+    /// Unix (<c>/home/…</c>, <c>/Users/…</c>); затем имя пользователя отдельным словом.
+    /// </summary>
+    public static string Scrub(string? text) => Scrub(text, Volatile.Read(ref _roots), Environment.UserName);
+
+    /// <summary>Каталог, путь к которому не должен попасть в журнал: данные приложения, листы спрайтов.</summary>
+    public static void Protect(string? path)
+    {
+        if (Normalize(path) is not { } root)
+        {
+            return;
+        }
+
+        lock (RootsLock)
+        {
+            _roots = [.. _roots.Append(root).Distinct(StringComparer.OrdinalIgnoreCase).OrderByDescending(r => r.Length)];
+        }
+    }
+
+    internal static string Scrub(string? text, IReadOnlyList<string> roots, string? userName)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        foreach (var root in roots)
+        {
+            text = text.Replace(root, PathMark, StringComparison.OrdinalIgnoreCase);
+        }
+
+        text = Paths().Replace(text, PathMark);
+
+        // Короткое имя совпало бы с обычными словами; имя из профиля уже заменено вместе с путём.
+        if (userName is { Length: >= 3 })
+        {
+            text = Regex.Replace(text, $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(userName)}(?![\p{{L}}\p{{N}}])", UserMark, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        }
+
+        return text;
+    }
+
+    private static string[] KnownRoots() =>
+    [
+        .. new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Path.GetTempPath(),
+        }
+        .Select(Normalize)
+        .OfType<string>()
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderByDescending(r => r.Length),
+    ];
+
+    /// <summary>Полный путь без завершающего разделителя; корень диска и пустое — не защищаются.</summary>
+    private static string? Normalize(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        return full.Length > 3 ? full : null;
+    }
 
     /// <summary>Тип, сообщение и стек исключения и всех вложенных.</summary>
     public static string Describe(Exception error)

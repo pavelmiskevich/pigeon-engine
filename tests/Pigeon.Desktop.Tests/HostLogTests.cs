@@ -62,6 +62,27 @@ public sealed class HostLogTests : IDisposable
     public void Scrub_ReplacesPaths(string message, string expected) =>
         Assert.Equal(expected, LogRedaction.Scrub(message));
 
+    [Theory]
+    [InlineData(@"нет C:\Users\Ivan Petrov\AppData\Local\Pigeon\pigeon.db", @"нет <путь>\AppData\Local\Pigeon\pigeon.db")]
+    [InlineData(@"нет c:\users\ivan petrov\x.db", @"нет <путь>\x.db")]
+    [InlineData(@"нет D:\Моё Хранилище\Голубь\pigeon.db", @"нет <путь>\pigeon.db")]
+    [InlineData("вошёл Ivan Petrov", "вошёл <пользователь>")]
+    [InlineData("Ivan Petrovich не тот", "Ivan Petrovich не тот")]
+    public void Scrub_RemovesKnownRootsWithSpaces_AndUserName(string message, string expected) =>
+        Assert.Equal(expected, LogRedaction.Scrub(message, [@"D:\Моё Хранилище\Голубь", @"C:\Users\Ivan Petrov"], "Ivan Petrov"));
+
+    [Fact]
+    public void Scrub_RemovesThisMachineProfile()
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Assert.SkipWhen(string.IsNullOrEmpty(profile), "нет профиля пользователя");
+
+        var text = LogRedaction.Scrub($"файл {Path.Combine(profile, "дальше с пробелом", "pigeon.db")} занят");
+
+        Assert.DoesNotContain(profile, text, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith("файл " + LogRedaction.PathMark, text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Files_AreBoundedInSizeAndCount()
     {
