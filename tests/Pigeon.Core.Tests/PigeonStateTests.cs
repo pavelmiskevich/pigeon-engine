@@ -56,6 +56,22 @@ public sealed class PigeonStateTests
     }
 
     [Fact]
+    public void Snapshots_AreEqualByContent()
+    {
+        var state = new PigeonState(Personality.Average, new Mood(0, 0.3, 0));
+        state.Memory.Visit(Taskbar, 30, territory: false);
+        var snapshot = state.ToSnapshot();
+
+        var copy = snapshot with { Memory = [.. snapshot.Memory!], LifeStory = [.. snapshot.LifeStory!] };
+        var empty = new PigeonState(Personality.Average, new Mood(0, 0.3, 0)).ToSnapshot();
+
+        Assert.Equal(snapshot, copy);
+        Assert.Equal(snapshot.GetHashCode(), copy.GetHashCode());
+        Assert.Equal(empty, empty with { Memory = null, LifeStory = null });
+        Assert.NotEqual(empty, snapshot);
+    }
+
+    [Fact]
     public void AddAbsence_RejectsNegative_AndSaturates()
     {
         var state = new PigeonState(Personality.Average, new Mood(0, 0.3, 0));

@@ -33,6 +33,28 @@ public sealed class TwoMonitorLifeTests
     }
 
     [Fact]
+    public void Pigeon_RemembersBothMonitors_AndTheStoryOfTheFirstFlight()
+    {
+        var desktop = new FakeDesktop { Topology = FakeDesktop.TwoMonitors(externalScale: 1.25) };
+        var host = new Host(desktop, seed: 21);
+
+        host.Run(6 * TicksPerHour);
+
+        var story = host.Simulation.LifeStory;
+        var flight = Assert.Single(story, e => e.Kind == LifeEventKind.FirstMultiMonitorTransition);
+        var firstVisit = story.First(e => e.Kind == LifeEventKind.FirstVisitToMonitor);
+        Assert.Equal(flight.Tick, firstVisit.Tick);
+        Assert.Contains(firstVisit.Key, new[] { "first-visit:desktop/external", "first-visit:desktop/laptop" });
+        Assert.Equal(story.Select(e => e.Key).Distinct(), story.Select(e => e.Key));
+
+        var now = host.Simulation.LifeSeconds;
+        var territories = host.Simulation.Pigeon.Memory.Entries.Where(e => e.Territory).ToList();
+        Assert.Equal(2, territories.Count);
+        Assert.All(territories, t => Assert.True(host.Simulation.Pigeon.Memory.FamiliarityOf(t.Place, now) > 0.0, t.Place.Value));
+        Assert.Contains(host.Simulation.Pigeon.Memory.Entries, e => !e.Territory);
+    }
+
+    [Fact]
     public void UnpluggedMonitor_StartlesThePigeonAndDropsItOntoTheOtherOne()
     {
         var desktop = new FakeDesktop { Topology = FakeDesktop.TwoMonitors() };
