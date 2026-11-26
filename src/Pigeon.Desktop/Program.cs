@@ -5,7 +5,9 @@
 //
 // Листы спрайтов собирает tools/Pigeon.SpriteBake; по умолчанию ищутся рядом с программой
 // (sprites/pigeon-black) и в assets/sprites/pigeon-black выше по дереву каталогов.
-// Данные приложения — по умолчанию %LOCALAPPDATA%\Pigeon; журнал хоста — в logs внутри (#52).
+// Данные приложения — по умолчанию %LOCALAPPDATA%\Pigeon: база голубя pigeon.db, резервные копии
+// в backups (#33), журнал хоста в logs (#52). Замер (--measure) без --data идёт на новом голубе во
+// временном каталоге, чтобы не трогать настоящего.
 // Мышь (M1.6): клик — тычок, потереть курсором — погладить, потянуть — взять в руки; правый
 // клик — меню (скрыть на час, выход).
 //
@@ -26,8 +28,11 @@ if (!OperatingSystem.IsWindows())
 
 string? Option(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 
+var measure = Option("--measure");
 var data = Option("--data")
-    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pigeon");
+    ?? (measure is not null
+        ? Path.Combine(Path.GetTempPath(), "pigeon-measure-" + Guid.NewGuid().ToString("N"))
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pigeon"));
 LogRedaction.Protect(data);
 using var log = new HostLog(Path.Combine(data, "logs"));
 
@@ -48,10 +53,28 @@ if (sprites is null)
 }
 
 LogRedaction.Protect(sprites);
-var measure = Option("--measure");
+
+// Синхронно: окна и цикл сообщений должны остаться в главном потоке, а продолжение await в
+// консольном приложении ушло бы в пул потоков.
+PetSession session;
 try
 {
-    var code = new DesktopHost(sprites, measure is null ? null : new Measurement(measure), log).Run();
+    session = PetSession.OpenAsync(data, log, TimeProvider.System).GetAwaiter().GetResult();
+}
+#pragma warning disable CA1031 // Голубя не загрузить — в журнал и выход; нового поверх старого не рождаем.
+catch (Exception error)
+#pragma warning restore CA1031
+{
+    log.Error("Хранилище голубя не открылось.", error);
+    Console.Error.WriteLine($"Хранилище голубя не открылось: {error.GetType().Name}. Подробности — в журнале {Path.Combine(data, "logs")}.");
+    return 3;
+}
+
+// После падения симуляции её состояние не сохраняется: в базе остаётся последний согласованный снимок.
+var saveOnExit = true;
+try
+{
+    var code = new DesktopHost(sprites, measure is null ? null : new Measurement(measure), log, session).Run();
     log.Info($"Выход, код {code}.");
     return code;
 }
@@ -59,9 +82,14 @@ try
 catch (Exception error)
 #pragma warning restore CA1031
 {
+    saveOnExit = error is not SimulationFailedException;
     log.Error("Голубь остановлен ошибкой.", error);
     Console.Error.WriteLine($"Голубь остановлен ошибкой: {error.GetType().Name}. Подробности — в журнале {Path.Combine(data, "logs")}.");
     return 3;
+}
+finally
+{
+    session.CloseAsync(saveOnExit).GetAwaiter().GetResult();
 }
 
 static string? FindSprites()

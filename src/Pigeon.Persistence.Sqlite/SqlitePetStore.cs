@@ -18,11 +18,13 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
     public const int SnapshotsToKeep = 10;
 
     private readonly string _databasePath;
+    private readonly TimeProvider _clock;
 
-    private SqlitePetStore(string databasePath, StoreOpenReport report)
+    private SqlitePetStore(string databasePath, StoreOpenReport report, TimeProvider clock)
     {
         _databasePath = databasePath;
         OpenReport = report;
+        _clock = clock;
     }
 
     /// <summary>Открывает базу, при необходимости создаёт её и применяет миграции.</summary>
@@ -58,7 +60,7 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
         try
         {
             var (_, attempts, errors) = await TransientRetry.RunAsync(Migrate, options.RetryBudget, delay, cancellationToken).ConfigureAwait(false);
-            return new SqlitePetStore(databasePath, new StoreOpenReport(attempts, errors));
+            return new SqlitePetStore(databasePath, new StoreOpenReport(attempts, errors), options.Clock ?? TimeProvider.System);
         }
         catch (SqliteException corruption) when (TransientRetry.IsCorruption(corruption))
         {
@@ -75,7 +77,7 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
             var quarantine = Quarantine(databasePath);
             File.Copy(backup, databasePath);
             var (_, attempts, errors) = await TransientRetry.RunAsync(Migrate, options.RetryBudget, delay, cancellationToken).ConfigureAwait(false);
-            return new SqlitePetStore(databasePath, new StoreOpenReport(attempts, errors, backup, quarantine));
+            return new SqlitePetStore(databasePath, new StoreOpenReport(attempts, errors, backup, quarantine), options.Clock ?? TimeProvider.System);
         }
     }
 
@@ -205,14 +207,15 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
             insert.Transaction = transaction;
             insert.CommandText =
                 """
-                INSERT INTO snapshots (pet_id, tick, format_version, journal_length, payload)
-                VALUES ($pet, $tick, $format, $journal, $payload);
+                INSERT INTO snapshots (pet_id, tick, format_version, journal_length, payload, saved_at)
+                VALUES ($pet, $tick, $format, $journal, $payload, $saved);
                 """;
             insert.Parameters.AddWithValue("$pet", petId.ToString());
             insert.Parameters.AddWithValue("$tick", snapshot.Tick);
             insert.Parameters.AddWithValue("$format", snapshot.FormatVersion);
             insert.Parameters.AddWithValue("$journal", snapshot.JournalLength);
             insert.Parameters.AddWithValue("$payload", payload);
+            insert.Parameters.AddWithValue("$saved", FormatTime(_clock.GetUtcNow()));
             insert.ExecuteNonQuery();
         }
 
@@ -232,6 +235,73 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
 
         transaction.Commit();
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Когда по настенным часам сохранён последний снимок питомца (ТЗ §6.3: время отсутствия).
+    /// <c>null</c> — снимков нет или последний сохранён до схемы v4, без времени.
+    /// </summary>
+    public ValueTask<DateTimeOffset?> GetLastSavedAtAsync(PetId petId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var connection = SqliteConnections.Open(_databasePath);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT saved_at FROM snapshots WHERE pet_id = $pet ORDER BY id DESC LIMIT 1;";
+        command.Parameters.AddWithValue("$pet", petId.ToString());
+
+        return ValueTask.FromResult(command.ExecuteScalar() is string saved ? ParseTime(saved) : (DateTimeOffset?)null);
+    }
+
+    /// <summary>
+    /// Записывает неизменную часть питомца (ТЗ §5.1) при рождении. Повторная запись того же
+    /// питомца ничего не меняет; другой питомец с тем же идентификатором — ошибка.
+    /// </summary>
+    public ValueTask SavePetAsync(PetIdentity identity, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        cancellationToken.ThrowIfCancellationRequested();
+        identity.Validate();
+
+        using var connection = SqliteConnections.Open(_databasePath);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        var stored = LoadPets(connection, transaction).FirstOrDefault(p => p.Id == identity.Id);
+        if (stored is not null)
+        {
+            if (stored != identity)
+            {
+                throw new InvalidOperationException($"Питомец {identity.Id} уже записан с другими данными.");
+            }
+
+            transaction.Commit();
+            return ValueTask.CompletedTask;
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText =
+            """
+            INSERT INTO pets (id, name, born_at, seed, plumage, schema_version)
+            VALUES ($id, $name, $born, $seed, $plumage, $version);
+            """;
+        insert.Parameters.AddWithValue("$id", identity.Id.ToString());
+        insert.Parameters.AddWithValue("$name", identity.Name);
+        insert.Parameters.AddWithValue("$born", FormatTime(identity.BornAt));
+        insert.Parameters.AddWithValue("$seed", unchecked((long)identity.Seed));
+        insert.Parameters.AddWithValue("$plumage", (int)identity.Plumage);
+        insert.Parameters.AddWithValue("$version", identity.SchemaVersion);
+        insert.ExecuteNonQuery();
+        transaction.Commit();
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Питомцы в базе от старшего к младшему.</summary>
+    public ValueTask<IReadOnlyList<PetIdentity>> LoadPetsAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var connection = SqliteConnections.Open(_databasePath);
+        return ValueTask.FromResult(LoadPets(connection, null));
     }
 
     public ValueTask<long> GetLengthAsync(PetId petId, CancellationToken cancellationToken)
@@ -353,6 +423,36 @@ public sealed class SqlitePetStore : IPetStore, IEventJournal
         command.Parameters.AddWithValue("$pet", pet);
         return SnapshotSerializer.Deserialize((string)command.ExecuteScalar()!);
     }
+
+    private static IReadOnlyList<PetIdentity> LoadPets(SqliteConnection connection, SqliteTransaction? transaction)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT id, name, born_at, seed, plumage, schema_version FROM pets ORDER BY born_at, id;";
+        using var reader = command.ExecuteReader();
+        var pets = new List<PetIdentity>();
+        while (reader.Read())
+        {
+            var identity = new PetIdentity(
+                new PetId(Guid.Parse(reader.GetString(0), CultureInfo.InvariantCulture)),
+                reader.GetString(1),
+                ParseTime(reader.GetString(2)),
+                unchecked((ulong)reader.GetInt64(3)),
+                (PlumageVariant)reader.GetInt32(4),
+                reader.GetInt32(5));
+            identity.Validate();
+            pets.Add(identity);
+        }
+
+        return pets;
+    }
+
+    /// <summary>Время UTC в ISO 8601 с точностью до тика: строки сравниваются в хронологическом порядке.</summary>
+    private static string FormatTime(DateTimeOffset time) =>
+        time.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture);
+
+    private static DateTimeOffset ParseTime(string text) =>
+        new(DateTime.ParseExact(text, "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal), TimeSpan.Zero);
 
     /// <summary>Откладывает испорченную базу и её WAL рядом под именем с временем; возвращает путь.</summary>
     private static string Quarantine(string databasePath)

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
-using System.Security.Cryptography;
 using Pigeon.Common.Randomness;
 using Pigeon.Common.Time;
 using Pigeon.Desktop.Rendering;
@@ -33,7 +32,7 @@ internal sealed class StopwatchClock : IClock
 /// сразу выход: её состояние после упавшего тика не согласовано.
 /// </remarks>
 [SupportedOSPlatform("windows")]
-internal sealed class DesktopHost(string spritesDirectory, Measurement? measurement, HostLog log)
+internal sealed class DesktopHost(string spritesDirectory, Measurement? measurement, HostLog log, PetSession session)
 {
     private static readonly TimeSpan WorldRefresh = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan UnusedClip = TimeSpan.FromSeconds(30);
@@ -65,9 +64,9 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         world.Refresh();
 
         var clock = new StopwatchClock();
-        // Хранения в продукте ещё нет (M1.9): каждый запуск — новый голубь со случайным seed.
-        var seed = BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(sizeof(ulong)));
-        var simulation = new PigeonSimulation(seed, SimulationOptions.Desktop);
+        // Голубь из хранилища (#33): родился при первом запуске или восстановлен из снимка.
+        var seed = session.Identity.Seed;
+        var simulation = session.Simulation;
         simulation.AttachWorld(world);
         var driver = new SimulationDriver(clock, simulation);
         var settings = LocomotionSettings.Default;
@@ -165,9 +164,8 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                     throw new SimulationFailedException(error);
                 }
 
-                // Хранения в продукте ещё нет (M1.9): журнал в памяти никому не нужен и рос бы всё
-                // время работы (#50). С хранением граница — подтверждённая базой длина журнала.
-                simulation.ForgetJournalBefore(simulation.JournalLength);
+                // Сохранение по расписанию и забывание подтверждённого базой журнала (#33, #50).
+                session.Tick();
                 var state = simulation.Pigeon;
                 var body = locomotion.Body;
                 var intent = state.Intent;
