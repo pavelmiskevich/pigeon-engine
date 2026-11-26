@@ -27,8 +27,13 @@ internal sealed class StopwatchClock : IClock
 /// мышь в одном потоке. Пока голубь стоит, окно перерисовывается только при смене кадра, и процесс
 /// спит до следующего события; в движении кадры идут 60 раз в секунду (ТЗ §37).
 /// </summary>
+/// <remarks>
+/// Ошибка кадра не убивает голубя (#52): цикл пишет её в журнал хоста и пробует снова, а после
+/// <see cref="FaultBoundary.GiveUpAfter"/> неудач подряд выходит с кодом 3. Ошибка симуляции —
+/// сразу выход: её состояние после упавшего тика не согласовано.
+/// </remarks>
 [SupportedOSPlatform("windows")]
-internal sealed class DesktopHost(string spritesDirectory, Measurement? measurement)
+internal sealed class DesktopHost(string spritesDirectory, Measurement? measurement, HostLog log)
 {
     private static readonly TimeSpan WorldRefresh = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan UnusedClip = TimeSpan.FromSeconds(30);
@@ -92,177 +97,203 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         var nextChange = TimeSpan.Zero;
         var firstFrame = true;
 
+        var faults = new FaultBoundary(log);
+
+        log.Info($"Мир: уровень {world.Level}, мониторов {world.Topology.Monitors.Count}.");
         Console.WriteLine($"Голубь на мониторе {world.PigeonMonitor}, уровень {world.Level}. Меню — правый клик по голубю.");
 
         while (MessageLoop.Pump())
         {
-            var now = clock.Elapsed;
-            if (now - lastRefresh >= WorldRefresh)
+            try
             {
-                lastRefresh = now;
-                var changes = world.Refresh();
-                foreach (var displaced in changes.OfType<PigeonDisplaced>())
+                var now = clock.Elapsed;
+                if (now - lastRefresh >= WorldRefresh)
                 {
-                    simulation.Submit(new FootingLost(displaced.Reason));
-                }
-
-                Report(locomotion.OnWorldChanged(changes, now), simulation);
-            }
-
-            while (pointer.TryDequeue(out var input))
-            {
-                foreach (var gesture in Recognize(gestures, input, now))
-                {
-                    Interact(gesture, locomotion, simulation, now, ref petted);
-                }
-
-                if (input.Action == PointerAction.RightUp)
-                {
-                    MenuItem?[] items = [new MenuItem(MenuHide, "Скрыть на час"), null, new MenuItem(MenuQuit, "Выход")];
-                    switch (PopupMenu.Show(pigeon.Handle, input.X, input.Y, items))
+                    lastRefresh = now;
+                    var changes = world.Refresh();
+                    foreach (var displaced in changes.OfType<PigeonDisplaced>())
                     {
-                        case MenuHide:
-                            hiddenUntil = clock.Elapsed + HideFor;
-                            break;
-                        case MenuQuit:
-                            MessageLoop.Quit();
-                            break;
+                        simulation.Submit(new FootingLost(displaced.Reason));
+                    }
+
+                    Report(locomotion.OnWorldChanged(changes, now), simulation);
+                }
+
+                while (pointer.TryDequeue(out var input))
+                {
+                    foreach (var gesture in Recognize(gestures, input, now))
+                    {
+                        Interact(gesture, locomotion, simulation, now, ref petted);
+                    }
+
+                    if (input.Action == PointerAction.RightUp)
+                    {
+                        MenuItem?[] items = [new MenuItem(MenuHide, "Скрыть на час"), null, new MenuItem(MenuQuit, "Выход")];
+                        switch (PopupMenu.Show(pigeon.Handle, input.X, input.Y, items))
+                        {
+                            case MenuHide:
+                                hiddenUntil = clock.Elapsed + HideFor;
+                                break;
+                            case MenuQuit:
+                                MessageLoop.Quit();
+                                break;
+                        }
                     }
                 }
-            }
 
-            var hidden = now < hiddenUntil || measurement is { Hidden: true };
-            if (cursorKnown && measurement is null)
-            {
-                var seen = locomotion.Body;
-                var scale = world.MonitorAt(seen.X, seen.Y - 1)?.Scale ?? 1.0;
-                (double X, double Y)? middle = shown is not null && !hidden && !locomotion.IsHeld
-                    ? (seen.X, seen.Y - (BodyMiddle * scale))
-                    : null;
-                (double X, double Y)? cursor = CursorPosition.Read() is { } point ? (point.X, point.Y) : null;
-                if (world.ObserveCursor(cursor, middle, now))
+                var hidden = now < hiddenUntil || measurement is { Hidden: true };
+                if (cursorKnown && measurement is null)
                 {
-                    simulation.Submit(new CursorApproached());
+                    var seen = locomotion.Body;
+                    var scale = world.MonitorAt(seen.X, seen.Y - 1)?.Scale ?? 1.0;
+                    (double X, double Y)? middle = shown is not null && !hidden && !locomotion.IsHeld
+                        ? (seen.X, seen.Y - (BodyMiddle * scale))
+                        : null;
+                    (double X, double Y)? cursor = CursorPosition.Read() is { } point ? (point.X, point.Y) : null;
+                    if (world.ObserveCursor(cursor, middle, now))
+                    {
+                        simulation.Submit(new CursorApproached());
+                    }
                 }
-            }
 
-            driver.Pump();
-
-            // Хранения в продукте ещё нет (M1.9): журнал в памяти никому не нужен и рос бы всё
-            // время работы (#50). С хранением граница — подтверждённая базой длина журнала.
-            simulation.ForgetJournalBefore(simulation.JournalLength);
-            var state = simulation.Pigeon;
-            var body = locomotion.Body;
-            var intent = state.Intent;
-            if (measurement is { Resting: true })
-            {
-                // Замер покоя: голубь стоит и дышит — клип idle, локомоция не идёт.
-                body = body.Gait == Gait.Hidden ? body : body with { Gait = Gait.Stand };
-                intent = Pigeon.Core.IntentKind.Groom;
-                locomotion.Update(now);
-            }
-            else
-            {
-                locomotion.Execute(state.Intent, state.IntentTarget, state.IntentStartedTick);
-                Report(locomotion.Update(now), simulation);
-                body = locomotion.Body;
-            }
-
-            var moving = measurement is { Moving: true };
-            var frame = hidden ? null : stage.Compose(world, body, intent, now);
-            if (now < petted.Until && body.Gait == Gait.Stand && frame is { } content)
-            {
-                // Поглаженный голубь сидит довольный, пока не кончится пауза.
-                frame = content with { Clip = "sit", ClipStarted = petted.Since };
-            }
-
-            if (moving && frame is { } walking)
-            {
-                // Замер движения: шаг на месте со скоростью ходьбы, кадры по пройденному пути.
-                measuredWalk += (now - lastLoop).TotalSeconds * settings.WalkSpeed / settings.SizeOnScreen;
-                frame = walking with { Clip = "walk", Walked = measuredWalk };
-            }
-
-            lastLoop = now;
-            var animating = moving || (measurement is not { Resting: true } && locomotion.IsMoving) || stage.IsAnimating(now);
-
-            if (frame is not { } current)
-            {
-                pigeon.Hide();
-                shadow.Hide();
-                shown = null;
-            }
-            else
-            {
-                var sheet = sprites.Get(current.Clip, SpriteLibrary.BucketFor(current.Scale), now);
-                int index;
-                if (current.Clip == "walk")
+                try
                 {
-                    index = ClipPlayer.FrameByDistance(sheet, current.Walked);
+                    driver.Pump();
+                }
+                catch (Exception error) when (FaultBoundary.Recoverable(error))
+                {
+                    throw new SimulationFailedException(error);
+                }
+
+                // Хранения в продукте ещё нет (M1.9): журнал в памяти никому не нужен и рос бы всё
+                // время работы (#50). С хранением граница — подтверждённая базой длина журнала.
+                simulation.ForgetJournalBefore(simulation.JournalLength);
+                var state = simulation.Pigeon;
+                var body = locomotion.Body;
+                var intent = state.Intent;
+                if (measurement is { Resting: true })
+                {
+                    // Замер покоя: голубь стоит и дышит — клип idle, локомоция не идёт.
+                    body = body.Gait == Gait.Hidden ? body : body with { Gait = Gait.Stand };
+                    intent = Pigeon.Core.IntentKind.Groom;
+                    locomotion.Update(now);
                 }
                 else
                 {
-                    player.Play(current.Clip, current.ClipStarted);
-                    index = player.FrameAt(sheet, now);
+                    locomotion.Execute(state.Intent, state.IntentTarget, state.IntentStartedTick);
+                    Report(locomotion.Update(now), simulation);
+                    body = locomotion.Body;
                 }
 
-                // В движении кадры идут по расписанию 60 Гц; на месте — только когда сменился
-                // кадр клипа или сцена.
-                var due = animating ? now >= nextChange : current != shown || index != shownFrame;
-                if (due)
+                var moving = measurement is { Moving: true };
+                var frame = hidden ? null : stage.Compose(world, body, intent, now);
+                if (now < petted.Until && body.Gait == Gait.Stand && frame is { } content)
                 {
-                    renderer.Draw(sheet, index, current);
-                    shown = current;
-                    shownFrame = index;
-                    measurement?.OnFrame(now);
-                    if (firstFrame)
+                    // Поглаженный голубь сидит довольный, пока не кончится пауза.
+                    frame = content with { Clip = "sit", ClipStarted = petted.Since };
+                }
+
+                if (moving && frame is { } walking)
+                {
+                    // Замер движения: шаг на месте со скоростью ходьбы, кадры по пройденному пути.
+                    measuredWalk += (now - lastLoop).TotalSeconds * settings.WalkSpeed / settings.SizeOnScreen;
+                    frame = walking with { Clip = "walk", Walked = measuredWalk };
+                }
+
+                lastLoop = now;
+                var animating = moving || (measurement is not { Resting: true } && locomotion.IsMoving) || stage.IsAnimating(now);
+
+                if (frame is not { } current)
+                {
+                    pigeon.Hide();
+                    shadow.Hide();
+                    shown = null;
+                }
+                else
+                {
+                    var sheet = sprites.Get(current.Clip, SpriteLibrary.BucketFor(current.Scale), now);
+                    int index;
+                    if (current.Clip == "walk")
                     {
-                        firstFrame = false;
-                        measurement?.OnFirstFrame();
+                        index = ClipPlayer.FrameByDistance(sheet, current.Walked);
+                    }
+                    else
+                    {
+                        player.Play(current.Clip, current.ClipStarted);
+                        index = player.FrameAt(sheet, now);
+                    }
+
+                    // В движении кадры идут по расписанию 60 Гц; на месте — только когда сменился
+                    // кадр клипа или сцена.
+                    var due = animating ? now >= nextChange : current != shown || index != shownFrame;
+                    if (due)
+                    {
+                        renderer.Draw(sheet, index, current);
+                        shown = current;
+                        shownFrame = index;
+                        measurement?.OnFrame(now);
+                        if (firstFrame)
+                        {
+                            firstFrame = false;
+                            measurement?.OnFirstFrame();
+                        }
+                    }
+
+                    nextChange = !animating ? player.NextChange(sheet, now)
+                        : !due ? nextChange
+                        : nextChange + MovingFrame > now ? nextChange + MovingFrame
+                        : now + MovingFrame;
+                }
+
+                sprites.ReleaseUnused(now, UnusedClip);
+
+                if (measurement is not null)
+                {
+                    measurement.Tick(now, () => new Dictionary<string, object>
+                    {
+                        ["level"] = world.Level.ToString(),
+                        ["monitors"] = world.Topology.Monitors.Select(m => $"{m.Bounds.Width}×{m.Bounds.Height} @ {m.Scale:0.##}").ToArray(),
+                        ["sprite_sheets_loaded"] = sprites.LoadedCount,
+                        ["sprite_sheets_mb"] = Math.Round(sprites.LoadedBytes / 1048576.0, 1),
+                        ["topmost_raises"] = keeper.Raises,
+                    });
+                    if (measurement.Finished)
+                    {
+                        break;
                     }
                 }
 
-                nextChange = !animating ? player.NextChange(sheet, now)
-                    : !due ? nextChange
-                    : nextChange + MovingFrame > now ? nextChange + MovingFrame
-                    : now + MovingFrame;
-            }
+                faults.Succeeded();
 
-            sprites.ReleaseUnused(now, UnusedClip);
-
-            if (measurement is not null)
-            {
-                measurement.Tick(now, () => new Dictionary<string, object>
+                // В движении кадры идут по композиции DWM: таймер ожидания слишком груб для 60 Гц. На
+                // месте и без кадра — спать до смены кадра или опроса экрана. Отдельно ради тика
+                // симуляции не просыпаемся: она досчитает пропущенные шаги при следующем пробуждении.
+                var pace = FramePacing.Next(
+                    hasFrame: frame is not null,
+                    animating,
+                    nextChange,
+                    nextRefresh: lastRefresh + WorldRefresh,
+                    pollAt: now + (world.Cursor.IsNear ? CursorNearSleep : LongestSleep),
+                    now);
+                if (pace.AwaitComposition)
                 {
-                    ["level"] = world.Level.ToString(),
-                    ["monitors"] = world.Topology.Monitors.Select(m => $"{m.Bounds.Width}×{m.Bounds.Height} @ {m.Scale:0.##}").ToArray(),
-                    ["sprite_sheets_loaded"] = sprites.LoadedCount,
-                    ["sprite_sheets_mb"] = Math.Round(sprites.LoadedBytes / 1048576.0, 1),
-                    ["topmost_raises"] = keeper.Raises,
-                });
-                if (measurement.Finished)
-                {
-                    break;
+                    MessageLoop.WaitForComposition();
+                    continue;
                 }
-            }
 
-            // В движении кадры идут по композиции DWM: таймер ожидания слишком груб для 60 Гц. На
-            // месте и без кадра — спать до смены кадра или опроса экрана. Отдельно ради тика
-            // симуляции не просыпаемся: она досчитает пропущенные шаги при следующем пробуждении.
-            var pace = FramePacing.Next(
-                hasFrame: frame is not null,
-                animating,
-                nextChange,
-                nextRefresh: lastRefresh + WorldRefresh,
-                pollAt: now + (world.Cursor.IsNear ? CursorNearSleep : LongestSleep),
-                now);
-            if (pace.AwaitComposition)
+                MessageLoop.Wait(pace.Wake - clock.Elapsed);
+            }
+#pragma warning disable CA1031 // Граница восстановления: ошибка кадра — в журнал, голубь живёт дальше.
+            catch (Exception error) when (FaultBoundary.Recoverable(error))
+#pragma warning restore CA1031
             {
-                MessageLoop.WaitForComposition();
-                continue;
-            }
+                if (!faults.Failed(error))
+                {
+                    return 3;
+                }
 
-            MessageLoop.Wait(pace.Wake - clock.Elapsed);
+                MessageLoop.Wait(faults.Pause);
+            }
         }
 
         return 0;
