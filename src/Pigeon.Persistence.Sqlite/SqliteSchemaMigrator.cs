@@ -42,6 +42,20 @@ public sealed class SqliteSchemaMigrator : ISchemaMigrator
         """
         ALTER TABLE journal ADD COLUMN payload TEXT NULL;
         """,
+
+        // v4: питомец в продукте (#33) — неизменная часть (ТЗ §5.1) и настенное время сохранения
+        // снимка: по нему хост считает время отсутствия (ТЗ §6.3). У старых снимков времени нет.
+        """
+        CREATE TABLE pets (
+            id TEXT NOT NULL PRIMARY KEY,
+            name TEXT NOT NULL,
+            born_at TEXT NOT NULL,
+            seed INTEGER NOT NULL,
+            plumage INTEGER NOT NULL,
+            schema_version INTEGER NOT NULL
+        ) WITHOUT ROWID;
+        ALTER TABLE snapshots ADD COLUMN saved_at TEXT NULL;
+        """,
     ];
 
     private readonly string _databasePath;

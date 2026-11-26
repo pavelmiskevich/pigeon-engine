@@ -8,7 +8,8 @@ namespace Pigeon.Persistence.Sqlite;
 /// откладывается рядом, а на её место встаёт последняя копия. <c>null</c> — не восстанавливать.
 /// </param>
 /// <param name="RetryFor">Сколько всего ждать, пока временная ошибка открытия пройдёт.</param>
-public sealed record StoreOpenOptions(string? BackupDirectory = null, TimeSpan? RetryFor = null)
+/// <param name="Clock">Настенные часы для времени сохранения снимка; по умолчанию — системные.</param>
+public sealed record StoreOpenOptions(string? BackupDirectory = null, TimeSpan? RetryFor = null, TimeProvider? Clock = null)
 {
     public static StoreOpenOptions Default { get; } = new();
 
