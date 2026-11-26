@@ -116,6 +116,36 @@ public sealed class BehaviorConfigTests
     }
 
     [Fact]
+    public void DefaultConfig_WeighsNoveltyForExploreAndRelocateOnly()
+    {
+        var config = BehaviorConfig.Default;
+
+        Assert.Equal(
+            [IntentKind.Explore, IntentKind.Relocate],
+            config.Intents.Where(i => i.NoveltyWeight != 0).Select(i => i.Kind));
+        Assert.Equal(0.25, config.Find(IntentKind.Relocate)!.NoveltyWeight);
+        Assert.Equal(0.25, config.Find(IntentKind.Explore)!.NoveltyWeight);
+    }
+
+    [Theory]
+    [InlineData("territoryZone", -0.1)]
+    [InlineData("territoryZone", 0.95)]
+    [InlineData(null, 0.25)]
+    public void NoveltyWeight_IsValidated(string? target, double weight)
+    {
+        var targets = target is null ? "" : $"\"targets\": [\"{target}\"], ";
+        var json = $$"""
+            { "selection": { "topK": 3, "delta": 0.1, "momentum": 0.25, "travelCostScaleSeconds": 60 },
+              "intents": { "relocate": { {{targets}}"novelty": {{weight.ToString(System.Globalization.CultureInfo.InvariantCulture)}},
+                "considerations": [ { "curve": "constant", "value": 0.3 } ], "durationSeconds": [10, 20] } } }
+            """;
+
+        var error = Assert.Throws<BehaviorConfigException>(() => BehaviorConfigJson.Parse(json));
+
+        Assert.Contains(error.Problems, p => p.Contains("novelty", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void VisitsTarget_NeedsATarget()
     {
         var json = Minimal.Replace("\"durationSeconds\": [10, 20]", "\"durationSeconds\": [10, 20], \"visitsTarget\": true", StringComparison.Ordinal);

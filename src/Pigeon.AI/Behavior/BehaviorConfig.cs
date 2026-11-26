@@ -46,6 +46,11 @@ public sealed record Consideration(ConsiderationInput Input, ResponseCurve Curve
 /// Завершённое намерение — визит в место цели: голубь там побывал и запоминает его (#33). У
 /// бегства — нет: от опасности убегают, а не знакомятся с ней.
 /// </param>
+/// <param name="NoveltyWeight">
+/// Вес новизны цели (#33, ТЗ §20): множитель <c>1 + w · (2·новизна − 1) · склонность</c>, где
+/// склонность — среднее Curiosity и Boldness в −1..1. Любопытного и смелого тянет к новому,
+/// робкого — к знакомому; 0 — новизна не учитывается.
+/// </param>
 public sealed record IntentDefinition(
     IntentKind Kind,
     IReadOnlyList<AffordanceKind> Targets,
@@ -57,7 +62,8 @@ public sealed record IntentDefinition(
     TimeSpan MaxDuration,
     TimeSpan Cooldown,
     NeedEffects Needs,
-    bool VisitsTarget = false)
+    bool VisitsTarget = false,
+    double NoveltyWeight = 0.0)
 {
     public bool HasTarget => Targets.Count > 0;
 }
@@ -178,6 +184,15 @@ public sealed record BehaviorConfig(
         if (intent.VisitsTarget && !intent.HasTarget)
         {
             yield return "visitsTarget у намерения без целей";
+        }
+
+        if (intent.NoveltyWeight is < 0.0 or > 0.9 || double.IsNaN(intent.NoveltyWeight))
+        {
+            yield return $"novelty = {intent.NoveltyWeight}, нужно 0..0.9";
+        }
+        else if (intent.NoveltyWeight != 0.0 && !intent.HasTarget)
+        {
+            yield return "novelty у намерения без целей";
         }
 
         if (intent.Cooldown < TimeSpan.Zero)

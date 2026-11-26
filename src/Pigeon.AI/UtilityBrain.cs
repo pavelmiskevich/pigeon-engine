@@ -25,7 +25,7 @@ public enum DecisionTrigger
 }
 
 /// <summary>Один фактор оценки — для объяснения решения (ТЗ §9.2, §36).</summary>
-/// <param name="Key">Что это: вход consideration (<c>need.boredom</c>), <c>personality</c>, <c>mood</c>, <c>momentum</c>.</param>
+/// <param name="Key">Что это: вход consideration (<c>need.boredom</c>), <c>personality</c>, <c>mood</c>, <c>novelty</c>, <c>momentum</c>.</param>
 /// <param name="Value">Значение множителя.</param>
 public readonly record struct DecisionFactor(string Key, double Value);
 
@@ -34,13 +34,14 @@ public sealed record ScoredOption(IntentKind Intent, AffordanceId? Target, doubl
 {
     /// <summary>
     /// 2–3 ведущих фактора (ТЗ §9.2): самые высокие considerations, кроме постоянных, затем
-    /// личность и настроение, если они заметно подняли оценку.
+    /// личность, настроение и новизна, если они заметно подняли оценку.
     /// </summary>
     public IReadOnlyList<DecisionFactor> LeadingFactors(int count = 3) =>
         [.. Factors
-            .Where(f => f.Key is not (UtilityBrain.PersonalityFactor or UtilityBrain.MoodFactor or UtilityBrain.MomentumFactor or UtilityBrain.ConstantFactor))
+            .Where(f => f.Key is not (UtilityBrain.PersonalityFactor or UtilityBrain.MoodFactor or UtilityBrain.NoveltyFactor
+                or UtilityBrain.MomentumFactor or UtilityBrain.ConstantFactor))
             .OrderByDescending(f => f.Value)
-            .Concat(Factors.Where(f => f.Key is UtilityBrain.PersonalityFactor or UtilityBrain.MoodFactor && f.Value >= 1.1)
+            .Concat(Factors.Where(f => f.Key is UtilityBrain.PersonalityFactor or UtilityBrain.MoodFactor or UtilityBrain.NoveltyFactor && f.Value >= 1.1)
                 .OrderByDescending(f => f.Value))
             .Take(count)];
 }
@@ -55,7 +56,7 @@ public sealed record Decision(ScoredOption Choice, bool KeptCurrent, DecisionTri
 /// <remarks>
 /// Оценка — произведение considerations с поправкой на их число (иначе намерение с четырьмя
 /// множителями всегда проигрывало бы намерению с одним), умноженное на вес трейтов, модификатор
-/// настроения и надбавку текущему намерению. Выбор — случайный, пропорционально оценке, из
+/// настроения, новизну цели (по памяти голубя) и надбавку текущему намерению. Выбор — случайный, пропорционально оценке, из
 /// лучших <see cref="BehaviorConfig.TopK"/> в пределах <see cref="BehaviorConfig.Delta"/> от
 /// лучшего. При плановом пересмотре текущее намерение остаётся, пока оно в этом наборе: так
 /// голубь не дёргается между близкими вариантами.
@@ -65,6 +66,7 @@ public sealed class UtilityBrain
     public const string PersonalityFactor = "personality";
     public const string MoodFactor = "mood";
     public const string MomentumFactor = "momentum";
+    public const string NoveltyFactor = "novelty";
     public const string ConstantFactor = "constant";
 
     private const double BoldnessRiskShift = 0.5;
@@ -89,11 +91,13 @@ public sealed class UtilityBrain
 
     /// <summary>Все допустимые варианты с оценками, в стабильном порядке: по намерению, затем по цели.</summary>
     /// <param name="affordances">Текущие affordances мира, упорядоченные по идентификатору.</param>
+    /// <param name="lifeSeconds">Возраст голубя: на этот момент считается знакомство с целями.</param>
     public IReadOnlyList<ScoredOption> Score(
         PigeonState pigeon,
         IReadOnlyList<Affordance> affordances,
         IntentCooldowns cooldowns,
         long tick,
+        long lifeSeconds,
         bool withMomentum)
     {
         ArgumentNullException.ThrowIfNull(pigeon);
@@ -110,7 +114,7 @@ public sealed class UtilityBrain
 
             if (!intent.HasTarget)
             {
-                options.Add(Evaluate(intent, pigeon, null, withMomentum));
+                options.Add(Evaluate(intent, pigeon, null, lifeSeconds, withMomentum));
                 continue;
             }
 
@@ -118,7 +122,7 @@ public sealed class UtilityBrain
             {
                 if (intent.Targets.Contains(affordance.Kind))
                 {
-                    options.Add(Evaluate(intent, pigeon, affordance, withMomentum));
+                    options.Add(Evaluate(intent, pigeon, affordance, lifeSeconds, withMomentum));
                 }
             }
         }
@@ -135,13 +139,14 @@ public sealed class UtilityBrain
         IReadOnlyList<Affordance> affordances,
         IntentCooldowns cooldowns,
         long tick,
+        long lifeSeconds,
         DecisionTrigger trigger,
         IRandomSource random)
     {
         ArgumentNullException.ThrowIfNull(random);
 
         var keepable = trigger is DecisionTrigger.Periodic or DecisionTrigger.Interrupted;
-        var options = Score(pigeon, affordances, cooldowns, tick, withMomentum: keepable);
+        var options = Score(pigeon, affordances, cooldowns, tick, lifeSeconds, withMomentum: keepable);
         var pool = Pool(options);
 
         if (pool.Count == 0)
@@ -215,9 +220,9 @@ public sealed class UtilityBrain
             .Take(_config.TopK)];
     }
 
-    private ScoredOption Evaluate(IntentDefinition intent, PigeonState pigeon, Affordance? target, bool withMomentum)
+    private ScoredOption Evaluate(IntentDefinition intent, PigeonState pigeon, Affordance? target, long lifeSeconds, bool withMomentum)
     {
-        var factors = new List<DecisionFactor>(intent.Considerations.Count + 3);
+        var factors = new List<DecisionFactor>(intent.Considerations.Count + 4);
         var count = intent.Considerations.Count;
         var compensation = 1.0 - 1.0 / count;
         var score = 1.0;
@@ -246,6 +251,18 @@ public sealed class UtilityBrain
         factors.Add(new DecisionFactor(MoodFactor, mood));
 
         score *= personality * mood;
+
+        if (intent.NoveltyWeight != 0.0 && target is not null)
+        {
+            // Новизна — отдельный множитель, а не consideration: у среднего голубя он ровно 1 и не
+            // занижает исследование относительно других намерений (ТЗ §20, #33).
+            var novelty = 1.0 - pigeon.Memory.FamiliarityOf(target.PlaceKey, lifeSeconds);
+            var lean = Math.Clamp(
+                0.5 * Personality.Centered(pigeon.Personality.Curiosity) + 0.5 * Personality.Centered(pigeon.Personality.Boldness), -1.0, 1.0);
+            var factor = 1.0 + intent.NoveltyWeight * (2.0 * novelty - 1.0) * lean;
+            factors.Add(new DecisionFactor(NoveltyFactor, factor));
+            score *= factor;
+        }
 
         if (withMomentum && pigeon.Intent == intent.Kind && pigeon.IntentTarget == target?.Id)
         {

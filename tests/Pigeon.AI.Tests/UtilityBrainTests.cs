@@ -22,7 +22,7 @@ public sealed class UtilityBrainTests
     [Fact]
     public void WithoutAWorld_OnlyIntentsWithoutATargetAreCandidates()
     {
-        var options = Brain.Score(Pigeon(), [], new IntentCooldowns(), 0, withMomentum: false);
+        var options = Brain.Score(Pigeon(), [], new IntentCooldowns(), 0, 0, withMomentum: false);
 
         Assert.Equal([IntentKind.Wander, IntentKind.Rest, IntentKind.Sleep, IntentKind.Groom], options.Select(o => o.Intent));
         Assert.All(options, o => Assert.Null(o.Target));
@@ -31,7 +31,7 @@ public sealed class UtilityBrainTests
     [Fact]
     public void Affordances_AddTargetedCandidatesForMatchingKindsOnly()
     {
-        var options = Brain.Score(Pigeon(), [Window, Cursor, OtherMonitor], new IntentCooldowns(), 0, withMomentum: false);
+        var options = Brain.Score(Pigeon(), [Window, Cursor, OtherMonitor], new IntentCooldowns(), 0, 0, withMomentum: false);
 
         Assert.Contains(options, o => o.Intent == IntentKind.Explore && o.Target == Window.Id);
         Assert.Contains(options, o => o.Intent == IntentKind.Observe && o.Target == Cursor.Id);
@@ -46,8 +46,8 @@ public sealed class UtilityBrainTests
         var cooldowns = new IntentCooldowns();
         cooldowns.Start(IntentKind.Groom, 100);
 
-        Assert.DoesNotContain(Brain.Score(Pigeon(), [], cooldowns, 99, false), o => o.Intent == IntentKind.Groom);
-        Assert.Contains(Brain.Score(Pigeon(), [], cooldowns, 100, false), o => o.Intent == IntentKind.Groom);
+        Assert.DoesNotContain(Brain.Score(Pigeon(), [], cooldowns, 99, 0, false), o => o.Intent == IntentKind.Groom);
+        Assert.Contains(Brain.Score(Pigeon(), [], cooldowns, 100, 0, false), o => o.Intent == IntentKind.Groom);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public sealed class UtilityBrainTests
     {
         var tired = Pigeon(needs: new Needs(0.85, 0.1, 0.1));
 
-        var options = Brain.Score(tired, [], new IntentCooldowns(), 0, false);
+        var options = Brain.Score(tired, [], new IntentCooldowns(), 0, 0, false);
 
         Assert.True(Score(options, IntentKind.Rest) > 2 * Score(options, IntentKind.Wander));
     }
@@ -64,12 +64,13 @@ public sealed class UtilityBrainTests
     public void Traits_ChangeTheScoreOfMatchingIntents()
     {
         var bored = new Needs(0.2, 0.5, 0.5);
-        var curious = Brain.Score(Pigeon(Personality.Average with { Curiosity = 100 }, bored), [Window], new IntentCooldowns(), 0, false);
-        var incurious = Brain.Score(Pigeon(Personality.Average with { Curiosity = 0 }, bored), [Window], new IntentCooldowns(), 0, false);
-        var social = Brain.Score(Pigeon(Personality.Average with { Sociability = 100 }, bored), [Cursor], new IntentCooldowns(), 0, false);
-        var aloof = Brain.Score(Pigeon(Personality.Average with { Independence = 100 }, bored), [Cursor], new IntentCooldowns(), 0, false);
+        var curious = Brain.Score(Pigeon(Personality.Average with { Curiosity = 100 }, bored), [Window], new IntentCooldowns(), 0, 0, false);
+        var incurious = Brain.Score(Pigeon(Personality.Average with { Curiosity = 0 }, bored), [Window], new IntentCooldowns(), 0, 0, false);
+        var social = Brain.Score(Pigeon(Personality.Average with { Sociability = 100 }, bored), [Cursor], new IntentCooldowns(), 0, 0, false);
+        var aloof = Brain.Score(Pigeon(Personality.Average with { Independence = 100 }, bored), [Cursor], new IntentCooldowns(), 0, 0, false);
 
-        Assert.Equal(1.6 / 0.4, Score(curious, IntentKind.Explore) / Score(incurious, IntentKind.Explore), 1e-9);
+        Assert.Equal(1.6 / 0.4, Factor(curious, IntentKind.Explore, UtilityBrain.PersonalityFactor) / Factor(incurious, IntentKind.Explore, UtilityBrain.PersonalityFactor), 1e-9);
+        Assert.True(Score(curious, IntentKind.Explore) > 4 * Score(incurious, IntentKind.Explore), "незнакомое окно тянет любопытного ещё и новизной");
         Assert.True(Score(social, IntentKind.SeekAttention) > 3 * Score(aloof, IntentKind.SeekAttention));
     }
 
@@ -79,8 +80,8 @@ public sealed class UtilityBrainTests
         var risky = Window with { Risk = 0.8 };
         var needs = new Needs(0.2, 0.6, 0.1);
 
-        var bold = Brain.Score(Pigeon(Personality.Average with { Boldness = 100 }, needs), [risky], new IntentCooldowns(), 0, false);
-        var timid = Brain.Score(Pigeon(Personality.Average with { Boldness = 0 }, needs), [risky], new IntentCooldowns(), 0, false);
+        var bold = Brain.Score(Pigeon(Personality.Average with { Boldness = 100 }, needs), [risky], new IntentCooldowns(), 0, 0, false);
+        var timid = Brain.Score(Pigeon(Personality.Average with { Boldness = 0 }, needs), [risky], new IntentCooldowns(), 0, 0, false);
 
         Assert.Equal(0.64, Factor(bold, IntentKind.Explore, "target.risk"), 1e-9);
         Assert.Equal(0.1, Factor(timid, IntentKind.Explore, "target.risk"), 1e-9);
@@ -91,9 +92,9 @@ public sealed class UtilityBrainTests
     {
         var pigeon = Pigeon(needs: new Needs(0.5, 0.5, 0.5));
         var affordances = new[] { Window, Cursor, OtherMonitor };
-        var best = Brain.Score(pigeon, affordances, new IntentCooldowns(), 0, false).Max(o => o.Score);
+        var best = Brain.Score(pigeon, affordances, new IntentCooldowns(), 0, 0, false).Max(o => o.Score);
 
-        var decision = Brain.Decide(pigeon, affordances, new IntentCooldowns(), 0, DecisionTrigger.Completed, new Pcg32(1, 1));
+        var decision = Brain.Decide(pigeon, affordances, new IntentCooldowns(), 0, 0, DecisionTrigger.Completed, new Pcg32(1, 1));
 
         Assert.InRange(decision.Pool.Count, 1, BehaviorConfig.Default.TopK);
         Assert.All(decision.Pool, o => Assert.True(o.Score >= best * (1 - BehaviorConfig.Default.Delta)));
@@ -110,7 +111,7 @@ public sealed class UtilityBrainTests
 
         for (ulong seed = 0; seed < 200; seed++)
         {
-            var decision = Brain.Decide(pigeon, [Window, twin], new IntentCooldowns(), 10, DecisionTrigger.Periodic, new Pcg32(seed, 7));
+            var decision = Brain.Decide(pigeon, [Window, twin], new IntentCooldowns(), 10, 0, DecisionTrigger.Periodic, new Pcg32(seed, 7));
 
             Assert.True(decision.KeptCurrent);
             Assert.Equal(Window.Id, decision.Choice.Target);
@@ -125,7 +126,7 @@ public sealed class UtilityBrainTests
         pigeon.StartIntent(IntentKind.Explore, Window.Id, Window.PlaceKey, 0, 10);
 
         var targets = Enumerable.Range(0, 200)
-            .Select(seed => Brain.Decide(pigeon, [Window, twin], new IntentCooldowns(), 10, DecisionTrigger.Completed, new Pcg32((ulong)seed, 7)))
+            .Select(seed => Brain.Decide(pigeon, [Window, twin], new IntentCooldowns(), 10, 0, DecisionTrigger.Completed, new Pcg32((ulong)seed, 7)))
             .Where(d => d.Choice.Intent == IntentKind.Explore)
             .Select(d => d.Choice.Target)
             .ToHashSet();
@@ -138,7 +139,7 @@ public sealed class UtilityBrainTests
     {
         var bored = Pigeon(Personality.Average with { Curiosity = 90 }, new Needs(0.1, 0.9, 0.1));
 
-        var explore = Brain.Score(bored, [Window], new IntentCooldowns(), 0, false).Single(o => o.Intent == IntentKind.Explore);
+        var explore = Brain.Score(bored, [Window], new IntentCooldowns(), 0, 0, false).Single(o => o.Intent == IntentKind.Explore);
         var leading = explore.LeadingFactors();
 
         Assert.InRange(leading.Count, 2, 3);
@@ -155,7 +156,7 @@ public sealed class UtilityBrainTests
         var random = new Pcg32(5, 5);
         var before = random.State;
 
-        var decision = Brain.Decide(pigeon, [], new IntentCooldowns(), 30, DecisionTrigger.Periodic, random);
+        var decision = Brain.Decide(pigeon, [], new IntentCooldowns(), 30, 0, DecisionTrigger.Periodic, random);
 
         Assert.True(decision.KeptCurrent);
         Assert.Equal(before, random.State);
@@ -191,11 +192,91 @@ public sealed class UtilityBrainTests
         pigeon.SetNeeds(needs);
         var cursor = Cursor with { Attractiveness = 0.7, Risk = risk, TravelCost = TimeSpan.FromSeconds(3) };
 
-        var best = Brain.Score(pigeon, [cursor], new IntentCooldowns(), 0, withMomentum: false).MaxBy(o => o.Score)!;
+        var best = Brain.Score(pigeon, [cursor], new IntentCooldowns(), 0, 0, withMomentum: false).MaxBy(o => o.Score)!;
 
         Assert.True(best.Intent == expected, $"{who}: {best.Intent}, ожидалось {expected}");
         Assert.Equal(cursor.Id, best.Target);
     }
+
+    [Fact]
+    public void Novelty_PullsTheCuriousToTheUnknownTerritory()
+    {
+        var curious = Familiar(Personality.Average with { Curiosity = 100, Boldness = 100 });
+
+        var options = Brain.Score(curious, [KnownMonitor, NewMonitor], new IntentCooldowns(), 0, 0, false);
+
+        var known = Option(options, IntentKind.Relocate, KnownMonitor);
+        var fresh = Option(options, IntentKind.Relocate, NewMonitor);
+        Assert.True(fresh.Score > known.Score);
+        Assert.Equal(1.25 / (1.0 + 0.25 * (2.0 * 0.1 - 1.0)), fresh.Score / known.Score, 1e-12);
+        Assert.Equal(1.25, fresh.Factors.Single(f => f.Key == UtilityBrain.NoveltyFactor).Value);
+        Assert.Contains(fresh.LeadingFactors(10), f => f.Key == UtilityBrain.NoveltyFactor);
+        Assert.DoesNotContain(known.LeadingFactors(10), f => f.Key == UtilityBrain.NoveltyFactor);
+    }
+
+    [Fact]
+    public void Novelty_KeepsTheTimidAtHome()
+    {
+        var timid = Familiar(Personality.Average with { Curiosity = 0, Boldness = 0 });
+
+        var options = Brain.Score(timid, [KnownMonitor, NewMonitor], new IntentCooldowns(), 0, 0, false);
+
+        Assert.True(Option(options, IntentKind.Relocate, KnownMonitor).Score > Option(options, IntentKind.Relocate, NewMonitor).Score);
+    }
+
+    [Fact]
+    public void Novelty_DoesNotTouchTheAveragePigeon()
+    {
+        var average = Familiar(Personality.Average);
+
+        var options = Brain.Score(average, [KnownMonitor, NewMonitor], new IntentCooldowns(), 0, 0, false);
+
+        var known = Option(options, IntentKind.Relocate, KnownMonitor);
+        var fresh = Option(options, IntentKind.Relocate, NewMonitor);
+        Assert.Equal(known.Score, fresh.Score);
+        Assert.Equal(1.0, known.Factors.Single(f => f.Key == UtilityBrain.NoveltyFactor).Value);
+        Assert.Equal(1.0, fresh.Factors.Single(f => f.Key == UtilityBrain.NoveltyFactor).Value);
+    }
+
+    [Fact]
+    public void Novelty_FadesWithForgetting()
+    {
+        var curious = Familiar(Personality.Average with { Curiosity = 100, Boldness = 100 });
+
+        var monthLater = Brain.Score(curious, [KnownMonitor, NewMonitor], new IntentCooldowns(), 0, 30 * 86_400, false);
+
+        Assert.Equal(
+            Option(monthLater, IntentKind.Relocate, NewMonitor).Score,
+            Option(monthLater, IntentKind.Relocate, KnownMonitor).Score,
+            1e-9);
+    }
+
+    [Fact]
+    public void IntentsWithoutNoveltyWeight_HaveNoNoveltyFactor()
+    {
+        var options = Brain.Score(Familiar(Personality.Average with { Curiosity = 100 }), [Window, Cursor, KnownMonitor], new IntentCooldowns(), 0, 0, false);
+
+        Assert.All(options.Where(o => o.Intent is not (IntentKind.Explore or IntentKind.Relocate)),
+            o => Assert.DoesNotContain(o.Factors, f => f.Key == UtilityBrain.NoveltyFactor));
+        Assert.Contains(Option(options, IntentKind.Explore, Window).Factors, f => f.Key == UtilityBrain.NoveltyFactor);
+    }
+
+    private static readonly Affordance KnownMonitor = OtherMonitor with { PlaceKey = new PlaceKey("desktop/known") };
+
+    private static readonly Affordance NewMonitor = OtherMonitor with { Id = new AffordanceId(4), PlaceKey = new PlaceKey("desktop/new") };
+
+    /// <summary>Скучающий голубь, который хорошо знает территорию <see cref="KnownMonitor"/> (знакомство 0,9).</summary>
+    private static PigeonState Familiar(Personality personality)
+    {
+        var snapshot = Pigeon(personality, new Needs(0.2, 0.6, 0.1)).ToSnapshot() with
+        {
+            Memory = [new PlaceMemoryEntry(KnownMonitor.PlaceKey, 0.9, 0, 1, true)],
+        };
+        return PigeonState.FromSnapshot(snapshot);
+    }
+
+    private static ScoredOption Option(IReadOnlyList<ScoredOption> options, IntentKind intent, Affordance target) =>
+        options.Single(o => o.Intent == intent && o.Target == target.Id);
 
     private static PigeonState Pigeon(Personality? personality = null, Needs? needs = null)
     {
