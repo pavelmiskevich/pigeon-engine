@@ -12,6 +12,7 @@
 // mood: множитель 1 + arousal · (2·arousal − 1) + valence · valence.
 // needs: как намерение меняет потребности; > 0 — рост во столько раз, < 0 — снижение,
 //   0 — потребность стоит (см. NeedEffects).
+// visitsTarget: завершённое намерение — визит в место цели, голубь его запоминает (#33).
 // Изменение значений меняет эталонный хеш симуляции (ADR-0016).
 {
   "selection": {
@@ -63,6 +64,7 @@
     },
     "explore": {
       "targets": ["pointOfInterest", "perchSpot", "restSpot"],
+      "visitsTarget": true,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.7, "min": 0.15, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.4, "max": 1.0 },
@@ -76,6 +78,7 @@
     },
     "observe": {
       "targets": ["pointOfInterest", "attentionTarget"],
+      "visitsTarget": true,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.6, "min": 0.2, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.3, "max": 1.0 },
@@ -88,6 +91,7 @@
     },
     "seekAttention": {
       "targets": ["attentionTarget"],
+      "visitsTarget": true,
       "considerations": [
         { "input": "need.attention", "curve": "smoothstep", "from": 0.3, "to": 0.9 },
         { "input": "target.travel", "curve": "linear", "from": 1.0, "to": 0.0, "min": 0.4, "max": 1.0 }
@@ -99,6 +103,7 @@
     },
     "followTarget": {
       "targets": ["attentionTarget"],
+      "visitsTarget": true,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.2, "to": 0.7, "min": 0.2, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.2, "max": 1.0 },
@@ -111,6 +116,7 @@
     },
     "play": {
       "targets": ["attentionTarget"],
+      "visitsTarget": true,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.6, "min": 0.15, "max": 1.0 },
         { "input": "need.fatigue", "curve": "linear", "from": 1.0, "to": 0.4 },
@@ -124,6 +130,7 @@
     },
     "relocate": {
       "targets": ["territoryZone"],
+      "visitsTarget": true,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.6, "min": 0.2, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.4, "max": 1.0 },
