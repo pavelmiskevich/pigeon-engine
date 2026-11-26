@@ -353,7 +353,9 @@ public sealed class PigeonSimulation
     internal static PigeonState Born(RandomStreams random, Personality? personality = null)
     {
         var traits = personality ?? Personality.Generate(random.Get(PersonalityStreamName));
-        return new PigeonState(traits, MoodRules.Baseline(traits));
+        var pigeon = new PigeonState(traits, MoodRules.Baseline(traits));
+        pigeon.LifeStory.Record(LifeEventKind.Born, null, 0, 0);
+        return pigeon;
     }
 
     private void ExecuteTick()
@@ -457,7 +459,8 @@ public sealed class PigeonSimulation
 
         var choice = decision.Choice;
         var duration = _brain.Config.Find(choice.Intent) is null ? _options.Step : _brain.PlanDuration(choice.Intent, _decisionRandom);
-        Pigeon.StartIntent(choice.Intent, choice.Target, tick, tick + Math.Max(1, TicksOf(duration)));
+        var place = choice.Target is { } target ? _affordances.FirstOrDefault(a => a.Id == target)?.PlaceKey : null;
+        Pigeon.StartIntent(choice.Intent, choice.Target, place, tick, tick + Math.Max(1, TicksOf(duration)));
     }
 
     private void StartCooldown(IntentKind intent, long tick)

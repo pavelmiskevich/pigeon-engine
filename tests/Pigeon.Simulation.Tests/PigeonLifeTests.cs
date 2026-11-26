@@ -229,7 +229,7 @@ public sealed class PigeonLifeTests
     {
         var simulation = new PigeonSimulation(Seed, Options, Personality.Average);
         simulation.RunTicks(30_000);
-        simulation.Pigeon.StartIntent(IntentKind.Sleep, null, simulation.Tick, simulation.Tick + 6_000);
+        simulation.Pigeon.StartIntent(IntentKind.Sleep, null, null, simulation.Tick, simulation.Tick + 6_000);
         var before = simulation.Pigeon.ToSnapshot();
 
         simulation.Submit(new UserPetted());
@@ -282,7 +282,7 @@ public sealed class PigeonLifeTests
         var asleep = new PigeonSimulation(Seed, Options);
         awake.RunTicks(100);
         asleep.RunTicks(100);
-        asleep.Pigeon.StartIntent(IntentKind.Sleep, null, asleep.Tick, asleep.Tick + 6_000);
+        asleep.Pigeon.StartIntent(IntentKind.Sleep, null, null, asleep.Tick, asleep.Tick + 6_000);
         var sleepMood = asleep.Pigeon.Mood;
         var decisions = asleep.LastDecision;
 

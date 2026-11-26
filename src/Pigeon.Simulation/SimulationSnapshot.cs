@@ -29,10 +29,10 @@ public sealed record SimulationSnapshot(
     IReadOnlyList<Affordance> Affordances)
 {
     /// <summary>
-    /// 3 — цель и план намерения, кулдауны и affordances мира (M1.2); 2 — личность, потребности
+    /// 4 — память мест, хроника жизни, место цели и полное время отсутствия (#33); 3 — цель и план намерения, кулдауны и affordances мира (M1.2); 2 — личность, потребности
     /// и настроение (M1.1); 1 — только усталость (S0.6), читается через <see cref="FromVersion1"/>.
     /// </summary>
-    public const int CurrentFormatVersion = 3;
+    public const int CurrentFormatVersion = 4;
 
     /// <summary>
     /// Снимок формата 1 в текущем формате. В первом формате личности ещё не было, поэтому она
@@ -62,7 +62,8 @@ public sealed record SimulationSnapshot(
             intent,
             intentStartedTick,
             IntentTarget: null,
-            IntentEndsTick: Math.Max(tick, intentStartedTick));
+            IntentEndsTick: Math.Max(tick, intentStartedTick),
+            LifeStory: born.LifeStory.Events);
 
         return new SimulationSnapshot(
             CurrentFormatVersion,
