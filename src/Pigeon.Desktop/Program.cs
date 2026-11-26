@@ -28,6 +28,7 @@ string? Option(string name) => Array.IndexOf(args, name) is var i and >= 0 && i 
 
 var data = Option("--data")
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pigeon");
+LogRedaction.Protect(data);
 using var log = new HostLog(Path.Combine(data, "logs"));
 
 // Исключения фоновых потоков: процесс всё равно завершится, но причина останется в журнале.
@@ -46,6 +47,7 @@ if (sprites is null)
     return 2;
 }
 
+LogRedaction.Protect(sprites);
 var measure = Option("--measure");
 try
 {
