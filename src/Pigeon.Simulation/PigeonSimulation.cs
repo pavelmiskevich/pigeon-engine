@@ -459,7 +459,7 @@ public sealed class PigeonSimulation
         }
 
         _cooldowns.Prune(tick);
-        var decision = _brain.Decide(Pigeon, _affordances, _cooldowns, tick, trigger, _decisionRandom);
+        var decision = _brain.Decide(Pigeon, _affordances, _cooldowns, tick, LifeSecondsAt(tick), trigger, _decisionRandom);
         LastDecision = decision;
 
         if (decision.KeptCurrent)

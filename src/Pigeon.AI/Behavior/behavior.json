@@ -13,6 +13,9 @@
 // needs: как намерение меняет потребности; > 0 — рост во столько раз, < 0 — снижение,
 //   0 — потребность стоит (см. NeedEffects).
 // visitsTarget: завершённое намерение — визит в место цели, голубь его запоминает (#33).
+// novelty: вес w новизны цели — множитель 1 + w · (2·новизна − 1) · склонность, где новизна =
+//   1 − знакомство с местом, склонность = (Curiosity и Boldness поровну) в −1..1; у среднего
+//   голубя множитель 1. Нет поля — новизна не учитывается.
 // Изменение значений меняет эталонный хеш симуляции (ADR-0016).
 {
   "selection": {
@@ -65,6 +68,7 @@
     "explore": {
       "targets": ["pointOfInterest", "perchSpot", "restSpot"],
       "visitsTarget": true,
+      "novelty": 0.25,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.7, "min": 0.15, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.4, "max": 1.0 },
@@ -131,6 +135,7 @@
     "relocate": {
       "targets": ["territoryZone"],
       "visitsTarget": true,
+      "novelty": 0.25,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.6, "min": 0.2, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.4, "max": 1.0 },

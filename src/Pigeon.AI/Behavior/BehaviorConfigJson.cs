@@ -193,7 +193,8 @@ public static class BehaviorConfigJson
             Seconds(duration[1]),
             Seconds(dto.CooldownSeconds),
             new NeedEffects(needs.Fatigue, needs.Boredom, needs.Attention),
-            dto.VisitsTarget);
+            dto.VisitsTarget,
+            dto.Novelty);
     }
 
     private static TimeSpan Seconds(double seconds) =>
@@ -249,6 +250,8 @@ internal sealed class IntentDto
     public NeedsDto? Needs { get; set; }
 
     public bool VisitsTarget { get; set; }
+
+    public double Novelty { get; set; }
 }
 
 internal sealed class ConsiderationDto
