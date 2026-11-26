@@ -63,6 +63,12 @@ public sealed class HostLogTests : IDisposable
     [InlineData("нет /Users/me/Library/My Pets/pigeon.db", "нет <путь>")]
     [InlineData("Error: тик 42 упал, a/b не путь", "Error: тик 42 упал, a/b не путь")]
     [InlineData("/homework не каталог", "/homework не каталог")]
+    [InlineData("открыт file:///home/me/x.db", "открыт file://<путь>")]
+    [InlineData("открыт //home/me/x.db", "открыт /<путь>")]
+    [InlineData("нет /home/me/a:b/секрет.db", "нет <путь>")]
+    [InlineData(@"нет \\?\C:\Users\Ivan Petrov\x.db", "нет <путь>")]
+    [InlineData(@"нет \\.\pipe\Ivan Petrov", "нет <путь>")]
+    [InlineData(@"нет \\server\share\a:b\секрет.db: занят", "нет <путь>: занят")]
     public void Scrub_ReplacesWholePaths(string message, string expected) =>
         Assert.Equal(expected, LogRedaction.Scrub(message, [], userName: null));
 

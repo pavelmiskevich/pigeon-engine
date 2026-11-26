@@ -323,13 +323,19 @@ internal static partial class LogRedaction
         }
     }
 
-    /// <summary>Сегменты пути после корня: разделитель и всё до следующего разделителя, кавычки, двоеточия или конца строки.</summary>
-    private const string Segments = @"(?:[\\/][^\\/""'<>|*?\r\n:]*)*";
+    /// <summary>
+    /// Символ имени в пути. Двоеточие — тоже, кроме «путь: сообщение» (за ним пробел или конец
+    /// строки): в путях Unix оно допустимо, а в <c>\\?\C:\…</c> стоит посреди пути.
+    /// </summary>
+    private const string NameChar = @"(?:[^\\/""'<>|*?\r\n:]|:(?!\s|$))";
+
+    /// <summary>Сегменты пути после корня: разделитель и символы имени до следующего разделителя.</summary>
+    private const string Segments = @"(?:[\\/]" + NameChar + "*)*";
 
     [GeneratedRegex(
-        @"(?<![\p{L}\p{N}])[A-Za-z]:[\\/][^\\/""'<>|*?\r\n:]*" + Segments +
-        @"|\\\\[^\\/\s""'<>|*?:]+" + Segments +
-        @"|(?<![\p{L}\p{N}/])/(?:home|Users|root|tmp|var|private|mnt|media)(?![^/\s""'<>|*?:])" + Segments,
+        @"(?<![\p{L}\p{N}])[A-Za-z]:[\\/]" + NameChar + "*" + Segments +
+        @"|\\\\(?:[?.][\\/])?(?:[^\\/\s""'<>|*?\r\n:]|:(?!\s|$))+" + Segments +
+        @"|(?<![\p{L}\p{N}])/(?:home|Users|root|tmp|var|private|mnt|media)(?![^/\s""'<>|*?:])" + Segments,
         RegexOptions.CultureInvariant)]
     private static partial Regex Paths();
 }
