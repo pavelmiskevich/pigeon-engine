@@ -141,6 +141,15 @@ public sealed class PigeonSimulation
     /// <summary>Метка настроения сейчас (ТЗ §7) — для анимаций, UI и контекста провайдеров.</summary>
     public MoodLabel MoodLabel => MoodRules.Classify(Pigeon.Mood, Pigeon.Needs, NeedRules);
 
+    /// <summary>
+    /// Возраст голубя в секундах (#33): прожитые тики и всё время, пока приложение не работало.
+    /// Этим временем забывается память мест и датируется хроника.
+    /// </summary>
+    public long LifeSeconds => LifeSecondsAt(Tick);
+
+    /// <summary>Хроника жизни в порядке событий (ТЗ §22).</summary>
+    public IReadOnlyList<LifeEvent> LifeStory => Pigeon.LifeStory.Events;
+
     /// <summary>Что мир предлагал при последнем опросе, по возрастанию идентификатора.</summary>
     public IReadOnlyList<Affordance> Affordances => _affordances;
 
@@ -436,6 +445,12 @@ public sealed class PigeonSimulation
     {
         _forcedTrigger = null;
 
+        if (trigger == DecisionTrigger.Completed && Pigeon.Intent == IntentKind.Wander
+            && TimeSpan.FromTicks((tick - Pigeon.IntentStartedTick) * _options.Step.Ticks) >= _brain.MinDurationOf(IntentKind.Wander))
+        {
+            Chronicle(LifeEventKind.FirstWalk, null, tick);
+        }
+
         // Завершённое или потерявшее цель намерение уходит на кулдаун до выбора, чтобы не
         // выбрать его снова сразу же.
         if (trigger is DecisionTrigger.Completed or DecisionTrigger.TargetGone or DecisionTrigger.Failed)
@@ -461,6 +476,55 @@ public sealed class PigeonSimulation
         var duration = _brain.Config.Find(choice.Intent) is null ? _options.Step : _brain.PlanDuration(choice.Intent, _decisionRandom);
         var place = choice.Target is { } target ? _affordances.FirstOrDefault(a => a.Id == target)?.PlaceKey : null;
         Pigeon.StartIntent(choice.Intent, choice.Target, place, tick, tick + Math.Max(1, TicksOf(duration)));
+        if (choice.Intent == IntentKind.Sleep)
+        {
+            Chronicle(LifeEventKind.FirstSleep, null, tick);
+        }
+    }
+
+    /// <summary>Возраст в секундах к тику <paramref name="tick"/>; насыщается на <see cref="long.MaxValue"/>.</summary>
+    private long LifeSecondsAt(long tick)
+    {
+        var lived = (Int128)tick * _options.Step.Ticks / TimeSpan.TicksPerSecond + Pigeon.AbsenceSeconds;
+        return lived > long.MaxValue ? long.MaxValue : (long)lived;
+    }
+
+    private void Chronicle(LifeEventKind kind, PlaceKey? place, long tick) =>
+        Pigeon.LifeStory.Record(kind, place, tick, LifeSecondsAt(tick));
+
+    /// <summary>
+    /// Мир подтвердил, что намерение исполнено: если оно — визит (<see cref="IntentDefinition.VisitsTarget"/>),
+    /// голубь запоминает место цели, взятое в начале намерения, — к отчёту цели среди affordances
+    /// уже может не быть.
+    /// </summary>
+    private void CountVisit(long tick)
+    {
+        if (_brain.Config.Find(Pigeon.Intent) is not { VisitsTarget: true } || Pigeon.IntentPlace is not { } place)
+        {
+            return;
+        }
+
+        var relocated = Pigeon.Intent == IntentKind.Relocate;
+        Remember(place, tick, territory: relocated);
+        if (Pigeon.Intent == IntentKind.Explore)
+        {
+            Chronicle(LifeEventKind.FirstAdventure, null, tick);
+        }
+        else if (relocated)
+        {
+            Chronicle(LifeEventKind.FirstMultiMonitorTransition, null, tick);
+            Chronicle(LifeEventKind.FirstVisitToMonitor, place, tick);
+        }
+    }
+
+    private void Remember(PlaceKey place, long tick, bool territory)
+    {
+        var now = LifeSecondsAt(tick);
+        Pigeon.Memory.Visit(place, now, territory);
+        if (Pigeon.Memory.Favorite(now) is not null)
+        {
+            Chronicle(LifeEventKind.FirstFavoriteTerritory, null, tick);
+        }
     }
 
     private void StartCooldown(IntentKind intent, long tick)
@@ -514,6 +578,7 @@ public sealed class PigeonSimulation
         switch (inputEvent)
         {
             case UserPoked:
+                Chronicle(LifeEventKind.FirstInteraction, null, tick);
                 var woken = Pigeon.Intent is IntentKind.Rest or IntentKind.Sleep;
                 Pigeon.SetNeeds(Pigeon.Needs
                     .Change(NeedKind.Fatigue, PokeFatigue)
@@ -531,12 +596,14 @@ public sealed class PigeonSimulation
                 Force(DecisionTrigger.Interrupted);
                 break;
             case UserPetted:
+                Chronicle(LifeEventKind.FirstInteraction, null, tick);
                 Pigeon.SetNeeds(Pigeon.Needs
                     .Change(NeedKind.Attention, -PetAttentionRelief)
                     .Change(NeedKind.Boredom, -PetBoredomRelief));
                 Pigeon.SetMood(Pigeon.Mood.Nudge(PetValence * (1.0 + Affinity()), PetArousal));
                 break;
             case UserPickedUp:
+                Chronicle(LifeEventKind.FirstInteraction, null, tick);
                 var scared = Fright();
                 Pigeon.SetNeeds(Pigeon.Needs.Change(NeedKind.Attention, -PickUpAttentionRelief));
                 Pigeon.SetMood(Pigeon.Mood.Nudge(PickUpValence * scared + PetValence * Affinity(), PickUpArousal * scared));
@@ -555,6 +622,8 @@ public sealed class PigeonSimulation
 
                 break;
             case AbsenceEnded absence:
+                // Память забывает всё отсутствие, потребности досчитываются с пределом.
+                Pigeon.AddAbsence(absence.Duration.Ticks / TimeSpan.TicksPerSecond);
                 var seconds = NeedRules.AbsenceSeconds(absence.Duration);
                 Pigeon.SetNeeds(NeedRules.CatchUpAbsence(Pigeon.Needs, Pigeon.Personality, absence.Duration));
                 var rested = MoodRules.CatchUpAbsence(Pigeon.Mood, Pigeon.Personality, seconds);
@@ -579,6 +648,7 @@ public sealed class PigeonSimulation
 
                 if (finished.Outcome == ActionOutcome.Completed)
                 {
+                    CountVisit(tick);
                     Pigeon.EndIntentAt(tick);
                 }
                 else
@@ -590,6 +660,16 @@ public sealed class PigeonSimulation
                 break;
             case AffordancesObserved observed:
                 _affordances = observed.Affordances;
+                if (Pigeon.Memory.Entries.Count == 0)
+                {
+                    // Первый взгляд на мир: голубь знает место, где родился, — насесты и места
+                    // отдыха вокруг (мир предлагает их только на мониторе, где голубь сидит).
+                    foreach (var spot in _affordances.Where(a => a.Kind is AffordanceKind.PerchSpot or AffordanceKind.RestSpot))
+                    {
+                        Remember(spot.PlaceKey, tick, territory: false);
+                    }
+                }
+
                 if (Pigeon.IntentTarget is { } target && !_affordances.Any(a => a.Id == target))
                 {
                     Force(DecisionTrigger.TargetGone);

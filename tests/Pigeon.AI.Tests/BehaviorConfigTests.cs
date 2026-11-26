@@ -103,6 +103,28 @@ public sealed class BehaviorConfigTests
         Assert.Contains(error.Problems, p => p.StartsWith("delta", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void DefaultConfig_CountsVisitsForTargetedIntentsButNotForFlight()
+    {
+        var config = BehaviorConfig.Default;
+
+        Assert.Equal(
+            [IntentKind.Explore, IntentKind.Observe, IntentKind.SeekAttention, IntentKind.FollowTarget, IntentKind.Play, IntentKind.Relocate],
+            config.Intents.Where(i => i.VisitsTarget).Select(i => i.Kind));
+        Assert.False(config.Find(IntentKind.Flee)!.VisitsTarget);
+        Assert.False(BehaviorConfigJson.Parse(Minimal).Find(IntentKind.Wander)!.VisitsTarget);
+    }
+
+    [Fact]
+    public void VisitsTarget_NeedsATarget()
+    {
+        var json = Minimal.Replace("\"durationSeconds\": [10, 20]", "\"durationSeconds\": [10, 20], \"visitsTarget\": true", StringComparison.Ordinal);
+
+        var error = Assert.Throws<BehaviorConfigException>(() => BehaviorConfigJson.Parse(json));
+
+        Assert.Contains(error.Problems, p => p.Contains("visitsTarget", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("""{ "selection": { "topK": 3, "delta": 0.1, "momentum": 0, "travelCostScaleSeconds": 60, "topk": 2 }, "intents": {} }""")]
     [InlineData("""{ "selection": { "topK": 3, "delta": 0.1, "momentum": 0, "travelCostScaleSeconds": 60 }, "intents": { "Wander": {} } }""")]

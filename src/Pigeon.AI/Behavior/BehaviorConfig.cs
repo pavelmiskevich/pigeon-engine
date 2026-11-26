@@ -42,6 +42,10 @@ public sealed record Consideration(ConsiderationInput Input, ResponseCurve Curve
 /// </param>
 /// <param name="ArousalWeight">Модификатор настроения: <c>1 + a · (2·arousal − 1) + v · valence</c>.</param>
 /// <param name="Cooldown">Сколько намерение недоступно после завершения или прерывания.</param>
+/// <param name="VisitsTarget">
+/// Завершённое намерение — визит в место цели: голубь там побывал и запоминает его (#33). У
+/// бегства — нет: от опасности убегают, а не знакомятся с ней.
+/// </param>
 public sealed record IntentDefinition(
     IntentKind Kind,
     IReadOnlyList<AffordanceKind> Targets,
@@ -52,7 +56,8 @@ public sealed record IntentDefinition(
     TimeSpan MinDuration,
     TimeSpan MaxDuration,
     TimeSpan Cooldown,
-    NeedEffects Needs)
+    NeedEffects Needs,
+    bool VisitsTarget = false)
 {
     public bool HasTarget => Targets.Count > 0;
 }
@@ -168,6 +173,11 @@ public sealed record BehaviorConfig(
         if (intent.MinDuration <= TimeSpan.Zero || intent.MaxDuration < intent.MinDuration)
         {
             yield return $"длительность {intent.MinDuration}..{intent.MaxDuration} некорректна";
+        }
+
+        if (intent.VisitsTarget && !intent.HasTarget)
+        {
+            yield return "visitsTarget у намерения без целей";
         }
 
         if (intent.Cooldown < TimeSpan.Zero)
