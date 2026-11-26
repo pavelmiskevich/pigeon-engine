@@ -208,10 +208,13 @@ internal static partial class LogRedaction
     private static string[] _roots = KnownRoots();
 
     /// <summary>
-    /// Сообщение без путей и имени пользователя. Сначала заменяются известные корни — профиль,
-    /// AppData, временный каталог, каталоги из <see cref="Protect"/>, — целиком, вместе с
-    /// пробелами в них; затем всё, что похоже на путь Windows (<c>C:\…</c>, <c>\\сервер\…</c>) или
-    /// Unix (<c>/home/…</c>, <c>/Users/…</c>); затем имя пользователя отдельным словом.
+    /// Сообщение без путей и имени пользователя. Путь вычищается целиком, со всеми сегментами после
+    /// корня — в именах файлов и каталогов бывают имена людей и проектов. Сегмент тянется до
+    /// разделителя, кавычки, двоеточия или конца строки и может содержать пробелы, поэтому иногда
+    /// вместе с путём уходит и конец сообщения: лучше потерять пару слов, чем имя файла.
+    /// Сначала — известные корни (профиль, AppData, временный каталог, каталоги из
+    /// <see cref="Protect"/>), затем всё, что похоже на путь Windows (<c>C:\…</c>, <c>\\сервер\…</c>)
+    /// или Unix (<c>/home/…</c>, <c>/Users/…</c>), затем имя пользователя отдельным словом.
     /// </summary>
     public static string Scrub(string? text) => Scrub(text, Volatile.Read(ref _roots), Environment.UserName);
 
@@ -238,7 +241,13 @@ internal static partial class LogRedaction
 
         foreach (var root in roots)
         {
-            text = text.Replace(root, PathMark, StringComparison.OrdinalIgnoreCase);
+            // Корень — только целым сегментом: «C:\Users\Ivan» не совпадает с началом «C:\Users\Ivanov».
+            text = Regex.Replace(
+                text,
+                Regex.Escape(root) + @"(?![^\\/\s""'<>|*?:])" + Segments,
+                PathMark,
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
         }
 
         text = Paths().Replace(text, PathMark);
@@ -314,6 +323,13 @@ internal static partial class LogRedaction
         }
     }
 
-    [GeneratedRegex(@"(?:[A-Za-z]:[\\/]|\\\\)[^\s""'<>|*?]*|/(?:home|Users|root|tmp|var|private|mnt|media)/[^\s""'<>|*?]*")]
+    /// <summary>Сегменты пути после корня: разделитель и всё до следующего разделителя, кавычки, двоеточия или конца строки.</summary>
+    private const string Segments = @"(?:[\\/][^\\/""'<>|*?\r\n:]*)*";
+
+    [GeneratedRegex(
+        @"(?<![\p{L}\p{N}])[A-Za-z]:[\\/][^\\/""'<>|*?\r\n:]*" + Segments +
+        @"|\\\\[^\\/\s""'<>|*?:]+" + Segments +
+        @"|(?<![\p{L}\p{N}/])/(?:home|Users|root|tmp|var|private|mnt|media)(?![^/\s""'<>|*?:])" + Segments,
+        RegexOptions.CultureInvariant)]
     private static partial Regex Paths();
 }
