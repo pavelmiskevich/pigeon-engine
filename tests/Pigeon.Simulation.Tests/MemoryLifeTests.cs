@@ -40,6 +40,23 @@ public sealed class MemoryLifeTests
     }
 
     [Fact]
+    public void ReturnToTheBirthMonitor_IsNotAFirstVisit()
+    {
+        var monitorA = MonitorB with { Id = new AffordanceId(4), PlaceKey = new PlaceKey("desktop/A") };
+        var simulation = new PigeonSimulation(5, Options, behavior: OnlyRelocation());
+        simulation.AttachWorld(new FixedWorld(Taskbar, monitorA));
+        simulation.RunTicks(1);
+        Assert.Equal(monitorA.PlaceKey, simulation.Pigeon.IntentPlace);
+
+        simulation.Submit(new ActionFinished(IntentKind.Relocate, simulation.Pigeon.IntentStartedTick, ActionOutcome.Completed));
+        simulation.RunTicks(1);
+
+        Assert.Contains(simulation.LifeStory, e => e.Kind == LifeEventKind.FirstMultiMonitorTransition);
+        Assert.DoesNotContain(simulation.LifeStory, e => e.Kind == LifeEventKind.FirstVisitToMonitor);
+        Assert.True(simulation.Pigeon.Memory.FamiliarityOf(monitorA.PlaceKey, simulation.LifeSeconds) > 0.35);
+    }
+
+    [Fact]
     public void FailedOrStaleReports_DoNotCountAVisit()
     {
         var simulation = StartedOn(IntentKind.Relocate, "relocate", MonitorB, visitsTarget: true);
@@ -219,6 +236,12 @@ public sealed class MemoryLifeTests
         Assert.Equal(target.PlaceKey, simulation.Pigeon.IntentPlace);
         return simulation;
     }
+
+    private static BehaviorConfig OnlyRelocation() => BehaviorConfigJson.Parse("""
+        { "selection": { "topK": 1, "delta": 0, "momentum": 0, "travelCostScaleSeconds": 60 },
+          "intents": { "relocate": { "targets": ["territoryZone"], "visitsTarget": true,
+            "considerations": [ { "curve": "constant", "value": 0.5 } ], "durationSeconds": [600, 600] } } }
+        """);
 
     private static BehaviorConfig OnlyIntents(params string[] names)
     {
