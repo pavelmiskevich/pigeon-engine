@@ -172,6 +172,48 @@ public sealed class PlaceMemoryTests
         Assert.Null(PlaceMemory.FromSnapshot([Territory("desktop/a", 0.9), new(new PlaceKey("desktop/b/floor"), 0.1, 0, 1, false)]).Favorite(0));
     }
 
+    [Fact]
+    public void Dwell_StrengthensAKnownTerritory_WithoutAVisit()
+    {
+        var memory = new PlaceMemory();
+        memory.Visit(Monitor, 0, territory: true);
+
+        Assert.True(memory.Dwell(Monitor, 0));
+        Assert.Equal(0.35 + 0.01 * 0.65, memory.FamiliarityOf(Monitor, 0), 1e-15);
+        Assert.Equal(1, Entry(memory, Monitor).Visits);
+        Assert.Equal(0, Entry(memory, Monitor).LastSeen);
+
+        Assert.True(memory.Dwell(Monitor, 60));
+        Assert.Equal(60, Entry(memory, Monitor).LastSeen);
+        Assert.Equal(1, Entry(memory, Monitor).Visits);
+    }
+
+    [Fact]
+    public void Dwell_IgnoresUnknownPlacesAndNonTerritories()
+    {
+        var memory = new PlaceMemory();
+
+        Assert.False(memory.Dwell(Monitor, 0));
+        Assert.Empty(memory.Entries);
+
+        memory.Visit(Taskbar, 0, territory: false);
+        var before = memory.Entries.ToList();
+        Assert.False(memory.Dwell(Taskbar, 0));
+        Assert.Equal(before, memory.Entries);
+    }
+
+    [Fact]
+    public void Favorite_CountsUnvisitedTerritoriesInView()
+    {
+        static PlaceMemory Home(double familiarity) => PlaceMemory.FromSnapshot([new(new PlaceKey("desktop/a"), familiarity, 0, 1, true)]);
+        PlaceKey[] other = [new("desktop/b")];
+
+        Assert.Equal(new PlaceKey("desktop/a"), Home(0.9).Favorite(0, other));
+        Assert.Null(Home(0.7).Favorite(0, other));
+        Assert.Null(Home(0.9).Favorite(0, [new PlaceKey("desktop/a")]));
+        Assert.Null(Home(0.9).Favorite(0));
+    }
+
     public static TheoryData<PlaceMemoryEntry[]> BrokenEntries => new()
     {
         new PlaceMemoryEntry[] { new(new PlaceKey("a"), 0.5, 0, 1, false), new(new PlaceKey("a"), 0.4, 0, 1, false) },
