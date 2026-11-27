@@ -296,6 +296,22 @@ public sealed class UtilityBrainTests
     }
 
     [Fact]
+    public void TheTimid_CarriedToAStrangeMonitor_IsDrawnHome()
+    {
+        // Человек перенёс робкого с обжитого монитора на чужой: «дом» под ним незнаком, а свой
+        // монитор — знакомая цель, к которой робкого тянет.
+        var pigeon = PigeonState.FromSnapshot(Pigeon(Personality.Average with { Curiosity = 0, Boldness = 0 }, new Needs(0.2, 0.6, 0.1)).ToSnapshot() with
+        {
+            Memory = [new PlaceMemoryEntry(KnownMonitor.PlaceKey, 0.9, 0, 1, true)],
+        });
+
+        var factors = Option(Brain.Score(pigeon, [HomePerch, KnownMonitor], new IntentCooldowns(), 0, 0, false), IntentKind.Relocate, KnownMonitor).Factors;
+
+        Assert.Equal(1.0, factors.Single(f => f.Key == UtilityBrain.HomeFactor).Value);
+        Assert.Equal(1.2, factors.Single(f => f.Key == UtilityBrain.NoveltyFactor).Value, 1e-12);
+    }
+
+    [Fact]
     public void HomeAttachment_NeedsToKnowWhereThePigeonSits()
     {
         var options = Brain.Score(Pigeon(Personality.Average with { Curiosity = 0, Boldness = 0 }), [NewMonitor], new IntentCooldowns(), 0, 0, false);
