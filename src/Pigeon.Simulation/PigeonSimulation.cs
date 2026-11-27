@@ -67,6 +67,9 @@ public sealed class PigeonSimulation
     // Неудача исполнения: голубь вспархивает и оглядывается — лёгкое возбуждение.
     internal const double FailureArousal = 0.1;
 
+    /// <summary>Насколько голубь оживляется, когда тишина кончается (#31): он просыпается.</summary>
+    internal const double WakeArousal = 0.1;
+
     private static readonly NeedModel NeedRules = NeedModel.Default;
     private static readonly MoodModel MoodRules = MoodModel.Default;
 
@@ -84,6 +87,7 @@ public sealed class PigeonSimulation
     private IReadOnlyList<Affordance> _affordances;
     private IAffordanceSource? _world;
     private DecisionTrigger? _forcedTrigger;
+    private bool _quiet;
 
     /// <summary>
     /// Рождение голубя: трейты выводятся из <paramref name="seed"/> или задаются явно
@@ -150,6 +154,9 @@ public sealed class PigeonSimulation
     /// <summary>Хроника жизни в порядке событий (ТЗ §22).</summary>
     public IReadOnlyList<LifeEvent> LifeStory => Pigeon.LifeStory.Events;
 
+    /// <summary>Идёт режим тишины (#31): голубь выбирает только тихие намерения.</summary>
+    public bool IsQuiet => _quiet;
+
     /// <summary>Что мир предлагал при последнем опросе, по возрастанию идентификатора.</summary>
     public IReadOnlyList<Affordance> Affordances => _affordances;
 
@@ -190,7 +197,10 @@ public sealed class PigeonSimulation
             new AffordancesObserved(snapshot.Affordances).Affordances,
             behavior,
             snapshot.Tick,
-            snapshot.JournalLength);
+            snapshot.JournalLength)
+        {
+            _quiet = snapshot.Quiet,
+        };
 
         foreach (var entry in snapshot.Pending)
         {
@@ -213,7 +223,8 @@ public sealed class PigeonSimulation
             JournalLength,
             [.. _pending],
             _cooldowns.Snapshot(),
-            _affordances);
+            _affordances,
+            _quiet);
 
     /// <summary>
     /// Забывает записи журнала до глобальной позиции <paramref name="position"/> (#50): хост
@@ -350,6 +361,13 @@ public sealed class PigeonSimulation
         }
 
         hasher.Add(JournalLength);
+
+        // Тишина входит в хеш только когда идёт: хеши жизней без тишины не изменились (ADR-0016).
+        if (_quiet)
+        {
+            hasher.Add("quiet");
+        }
+
         return hasher.Value;
     }
 
@@ -459,7 +477,7 @@ public sealed class PigeonSimulation
         }
 
         _cooldowns.Prune(tick);
-        var decision = _brain.Decide(Pigeon, _affordances, _cooldowns, tick, LifeSecondsAt(tick), trigger, _decisionRandom);
+        var decision = _brain.Decide(Pigeon, _affordances, _cooldowns, tick, LifeSecondsAt(tick), trigger, _decisionRandom, _quiet);
         LastDecision = decision;
 
         if (decision.KeptCurrent)
@@ -645,6 +663,21 @@ public sealed class PigeonSimulation
 
                 var fright = Fright();
                 Pigeon.SetMood(Pigeon.Mood.Nudge(StartleValence * fright, StartleArousal * fright));
+                Force(DecisionTrigger.Interrupted);
+                break;
+            case QuietChanged change:
+                if (change.Quiet == _quiet)
+                {
+                    break;
+                }
+
+                _quiet = change.Quiet;
+                if (!_quiet)
+                {
+                    // Тишина кончилась: голубь просыпается там, где затих, и решает, что дальше.
+                    Pigeon.SetMood(Pigeon.Mood.Nudge(0.0, WakeArousal));
+                }
+
                 Force(DecisionTrigger.Interrupted);
                 break;
             case ActionFinished finished:

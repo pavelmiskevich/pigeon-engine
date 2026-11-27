@@ -15,6 +15,10 @@ namespace Pigeon.Simulation;
 /// <param name="Pending">Входы, поданные, но ещё не применённые.</param>
 /// <param name="Cooldowns">До какого тика недоступны намерения, в порядке намерений.</param>
 /// <param name="Affordances">Что мир предлагал при последнем опросе.</param>
+/// <param name="Quiet">
+/// Идёт режим тишины (#31). Поле необязательное, поэтому формат не меняется: снимки без него —
+/// не в тишине.
+/// </param>
 public sealed record SimulationSnapshot(
     int FormatVersion,
     ulong Seed,
@@ -26,7 +30,8 @@ public sealed record SimulationSnapshot(
     long JournalLength,
     IReadOnlyList<JournalEntry> Pending,
     IReadOnlyList<KeyValuePair<IntentKind, long>> Cooldowns,
-    IReadOnlyList<Affordance> Affordances)
+    IReadOnlyList<Affordance> Affordances,
+    bool Quiet = false)
 {
     /// <summary>
     /// 4 — память мест, хроника жизни, место цели и полное время отсутствия (#33); 3 — цель и план намерения, кулдауны и affordances мира (M1.2); 2 — личность, потребности

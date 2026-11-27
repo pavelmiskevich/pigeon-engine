@@ -62,7 +62,8 @@ public static class SnapshotSerializer
             snapshot.Pigeon.IntentPlace?.Value,
             snapshot.Pigeon.AbsenceSeconds,
             [.. (snapshot.Pigeon.Memory ?? []).Select(m => new PlaceMemoryDto(m.Place.Value, m.Familiarity, m.LastSeen, m.Visits, m.Territory))],
-            [.. (snapshot.Pigeon.LifeStory ?? []).Select(e => new LifeEventDto(e.Key, (int)e.Kind, e.Place?.Value, e.Tick, e.LifeSeconds, e.Version))]);
+            [.. (snapshot.Pigeon.LifeStory ?? []).Select(e => new LifeEventDto(e.Key, (int)e.Kind, e.Place?.Value, e.Tick, e.LifeSeconds, e.Version))],
+            snapshot.Quiet ? true : null);
 
     private static SimulationSnapshot FromDto(SnapshotDto dto)
     {
@@ -118,7 +119,8 @@ public static class SnapshotSerializer
             dto.JournalLength,
             pending,
             [.. (dto.Cooldowns ?? []).Select(c => KeyValuePair.Create((IntentKind)c.Intent, c.UntilTick))],
-            FromDto(dto.Affordances ?? []));
+            FromDto(dto.Affordances ?? []),
+            dto.Quiet ?? false);
     }
 
     /// <summary>

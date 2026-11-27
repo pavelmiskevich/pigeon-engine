@@ -33,7 +33,8 @@ internal sealed record SnapshotDto(
     string? IntentPlace = null,
     long? AbsenceSeconds = null,
     IReadOnlyList<PlaceMemoryDto>? Memory = null,
-    IReadOnlyList<LifeEventDto>? LifeStory = null);
+    IReadOnlyList<LifeEventDto>? LifeStory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Quiet = null);
 
 /// <param name="Familiarity">Знакомство 0..1 на момент <paramref name="LastSeen"/> (секунда жизни голубя).</param>
 internal sealed record PlaceMemoryDto(string Place, double Familiarity, long LastSeen, int Visits, bool Territory);
