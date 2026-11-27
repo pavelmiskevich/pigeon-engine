@@ -17,6 +17,9 @@
 //   1 − знакомство с местом (у другой территории — 1 − f + 0.5 · min(f, знакомство дома)),
 //   склонность = (Curiosity и Boldness поровну) в −1..1; у среднего голубя множитель 1. Нет
 //   поля — новизна не учитывается.
+// homeAttachment: привязанность к дому у целей territoryZone (#89) — множитель
+//   1 − w · знакомство дома · max(0, −склонность): робкого держит обжитой монитор, у среднего и
+//   любопытного множитель 1. Дом обживается временем на нём (MemoryRules.DwellGain).
 // Изменение значений меняет эталонный хеш симуляции (ADR-0016).
 {
   "selection": {
@@ -137,6 +140,7 @@
       "targets": ["territoryZone"],
       "visitsTarget": true,
       "novelty": 0.25,
+      "homeAttachment": 0.3,
       "considerations": [
         { "input": "need.boredom", "curve": "smoothstep", "from": 0.1, "to": 0.6, "min": 0.2, "max": 1.0 },
         { "input": "target.attractiveness", "curve": "linear", "min": 0.4, "max": 1.0 },

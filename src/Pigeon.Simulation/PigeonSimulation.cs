@@ -81,6 +81,11 @@ public sealed class PigeonSimulation
     private long _journalOffset;
     private readonly double _stepSeconds;
 
+    /// <summary>Раз во сколько тиков голубь обживает территорию: минута симуляции (#89).</summary>
+    private static readonly TimeSpan DwellInterval = TimeSpan.FromSeconds(60);
+
+    private readonly long _dwellEveryTicks;
+
     private IReadOnlyList<Affordance> _affordances;
     private IAffordanceSource? _world;
     private DecisionTrigger? _forcedTrigger;
@@ -125,6 +130,7 @@ public sealed class PigeonSimulation
         _affordances = affordances;
         _journalOffset = journalOffset;
         _stepSeconds = options.Step.Ticks / (double)TimeSpan.TicksPerSecond;
+        _dwellEveryTicks = Math.Max(1, TicksOf(DwellInterval));
         Pigeon = pigeon;
         Tick = tick;
     }
@@ -399,6 +405,11 @@ public sealed class PigeonSimulation
             Decide(tick, trigger);
         }
 
+        if (tick % _dwellEveryTicks == 0)
+        {
+            Dwell(tick);
+        }
+
         Tick = tick;
     }
 
@@ -528,7 +539,32 @@ public sealed class PigeonSimulation
     {
         var now = LifeSecondsAt(tick);
         Pigeon.Memory.Visit(place, now, territory);
-        if (Pigeon.Memory.Favorite(now) is not null)
+        CheckFavorite(now, tick);
+    }
+
+    /// <summary>
+    /// Минута жизни на территории обживает её (#89): дом знакомится временем на нём, а не только
+    /// перелётами. Такт — номер тика, поэтому воспроизведение и восстановление дают то же.
+    /// </summary>
+    private void Dwell(long tick)
+    {
+        var now = LifeSecondsAt(tick);
+        var dwelt = false;
+        foreach (var territory in AffordanceTerritories.Home(_affordances))
+        {
+            dwelt |= Pigeon.Memory.Dwell(territory, now);
+        }
+
+        if (dwelt)
+        {
+            CheckFavorite(now, tick);
+        }
+    }
+
+    /// <summary>Мониторы, где голубь не бывал, но видит их, соперничают с домом со знакомством 0.</summary>
+    private void CheckFavorite(long now, long tick)
+    {
+        if (Pigeon.Memory.Favorite(now, AffordanceTerritories.Others(_affordances)) is not null)
         {
             Chronicle(LifeEventKind.FirstFavoriteTerritory, null, tick);
         }

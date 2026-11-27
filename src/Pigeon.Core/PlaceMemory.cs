@@ -15,6 +15,10 @@ namespace Pigeon.Core;
 /// <param name="Capacity">Больше записей память не держит: лишнюю вытесняет наименее знакомая.</param>
 /// <param name="FavoriteAt">Знакомство любимой территории не меньше этого…</param>
 /// <param name="RivalAtMost">…а у следующей за ней — не больше этого.</param>
+/// <param name="DwellGain">
+/// Доля оставшегося незнакомства территории, которую снимает минута жизни на ней (#89): дом
+/// обживается временем, а не только перелётами.
+/// </param>
 public sealed record MemoryRules(
     double VisitGain,
     double AncestorGain,
@@ -23,9 +27,10 @@ public sealed record MemoryRules(
     long MaxTimeConstantSeconds,
     int Capacity,
     double FavoriteAt,
-    double RivalAtMost)
+    double RivalAtMost,
+    double DwellGain = 0.01)
 {
-    /// <summary>τ₀ = сутки, ×1,5 за визит, не больше 30 суток; 64 места.</summary>
+    /// <summary>τ₀ = сутки, ×1,5 за визит, не больше 30 суток; 64 места; минута на территории — 1%.</summary>
     public static MemoryRules Default { get; } = new(0.35, 0.1, 86_400, 1.5, 2_592_000, 64, 0.8, 0.5);
 }
 
@@ -116,11 +121,32 @@ public sealed class PlaceMemory
     }
 
     /// <summary>
+    /// Голубь живёт на территории (#89): она знакомится на <see cref="MemoryRules.DwellGain"/>, визит
+    /// не засчитывается. Обживается только территория, уже известная памяти, — новую запись даёт
+    /// визит, иначе перелёт на неё потерял бы событие «впервые».
+    /// </summary>
+    /// <returns><c>false</c> — места нет в памяти или оно не территория.</returns>
+    public bool Dwell(PlaceKey territory, long now)
+    {
+        if (territory.Value is null || !_entries.TryGetValue(territory.Value, out var entry) || !entry.Territory)
+        {
+            return false;
+        }
+
+        Reinforce(territory, now, Rules.DwellGain, countVisit: false, territory: true, territory, []);
+        return true;
+    }
+
+    /// <summary>
     /// Любимая территория: знакомство не меньше <see cref="MemoryRules.FavoriteAt"/>, а у следующей
     /// по знакомству — не больше <see cref="MemoryRules.RivalAtMost"/>. Пока известна одна
     /// территория, предпочтения нет.
     /// </summary>
-    public PlaceKey? Favorite(long now)
+    /// <param name="unvisited">
+    /// Территории, которые голубь видит в мире (#89): те, которых нет в памяти, соперничают со
+    /// знакомством 0 — домосед, не бывавший на другом мониторе, всё равно предпочитает свой.
+    /// </param>
+    public PlaceKey? Favorite(long now, IEnumerable<PlaceKey>? unvisited = null)
     {
         PlaceMemoryEntry? best = null;
         var bestFamiliarity = -1.0;
@@ -144,6 +170,15 @@ public sealed class PlaceMemory
             else if (familiarity > rivalFamiliarity)
             {
                 rivalFamiliarity = familiarity;
+            }
+        }
+
+        foreach (var place in (unvisited ?? []).Distinct())
+        {
+            if (place.Value is not null && !_entries.ContainsKey(place.Value))
+            {
+                territories++;
+                rivalFamiliarity = Math.Max(rivalFamiliarity, 0.0);
             }
         }
 

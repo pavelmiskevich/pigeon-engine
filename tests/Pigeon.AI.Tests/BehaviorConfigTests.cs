@@ -146,6 +146,33 @@ public sealed class BehaviorConfigTests
     }
 
     [Fact]
+    public void DefaultConfig_AttachesOnlyRelocateToHome()
+    {
+        var config = BehaviorConfig.Default;
+
+        Assert.Equal([IntentKind.Relocate], config.Intents.Where(i => i.HomeAttachmentWeight != 0).Select(i => i.Kind));
+        Assert.Equal(0.3, config.Find(IntentKind.Relocate)!.HomeAttachmentWeight);
+    }
+
+    [Theory]
+    [InlineData("territoryZone", -0.1)]
+    [InlineData("territoryZone", 0.95)]
+    [InlineData(null, 0.3)]
+    public void HomeAttachmentWeight_IsValidated(string? target, double weight)
+    {
+        var targets = target is null ? "" : $"\"targets\": [\"{target}\"], ";
+        var json = $$"""
+            { "selection": { "topK": 3, "delta": 0.1, "momentum": 0.25, "travelCostScaleSeconds": 60 },
+              "intents": { "relocate": { {{targets}}"homeAttachment": {{weight.ToString(System.Globalization.CultureInfo.InvariantCulture)}},
+                "considerations": [ { "curve": "constant", "value": 0.3 } ], "durationSeconds": [10, 20] } } }
+            """;
+
+        var error = Assert.Throws<BehaviorConfigException>(() => BehaviorConfigJson.Parse(json));
+
+        Assert.Contains(error.Problems, p => p.Contains("homeAttachment", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void VisitsTarget_NeedsATarget()
     {
         var json = Minimal.Replace("\"durationSeconds\": [10, 20]", "\"durationSeconds\": [10, 20], \"visitsTarget\": true", StringComparison.Ordinal);

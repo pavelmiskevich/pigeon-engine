@@ -170,6 +170,43 @@ public sealed class MemoryLifeTests
     }
 
     [Fact]
+    public void Dwelling_StrengthensTheHomeTerritory_EveryMinute()
+    {
+        var simulation = new PigeonSimulation(3, Options);
+        simulation.AttachWorld(new FixedWorld(Taskbar, Cursor, MonitorB));
+        var home = new PlaceKey("desktop/A");
+
+        simulation.RunTicks(599);
+        Assert.Equal(0.415, simulation.Pigeon.Memory.Entries.Single(e => e.Place == home).Familiarity, 1e-12);
+
+        simulation.RunTicks(1);
+
+        // Минута жизни на мониторе: забывание за 60 с, затем 1% оставшегося незнакомства.
+        var decayed = 0.415 * DeterministicMath.PowInt(1.0 - 1.0 / Day, 60);
+        var entry = simulation.Pigeon.Memory.Entries.Single(e => e.Place == home);
+        Assert.Equal(decayed + 0.01 * (1.0 - decayed), entry.Familiarity, 1e-12);
+        Assert.Equal(60, entry.LastSeen);
+        Assert.Equal(1, entry.Visits);
+
+        // Монитор, где голубь не бывал, обживание не создаёт: его даст только перелёт.
+        Assert.DoesNotContain(simulation.Pigeon.Memory.Entries, e => e.Place == MonitorB.PlaceKey);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Homebody_GetsAFavoriteMonitor_OnlyWhenThereIsAnother(bool twoMonitors)
+    {
+        var simulation = new PigeonSimulation(3, Options, Personality.Average with { Curiosity = 0, Boldness = 0 });
+        simulation.AttachWorld(twoMonitors ? new FixedWorld(Taskbar, Cursor, MonitorB) : new FixedWorld(Taskbar, Cursor));
+
+        simulation.RunTicks(4 * 36_000);
+
+        Assert.True(simulation.Pigeon.Memory.FamiliarityOf(new PlaceKey("desktop/A"), simulation.LifeSeconds) >= 0.8);
+        Assert.Equal(twoMonitors, simulation.LifeStory.Any(e => e.Kind == LifeEventKind.FirstFavoriteTerritory));
+    }
+
+    [Fact]
     public void LifeStory_SurvivesRestoreAndReplayWithoutDuplicates()
     {
         var live = new PigeonSimulation(7, Options, Personality.Average with { Curiosity = 90 });
