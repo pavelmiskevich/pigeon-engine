@@ -99,5 +99,12 @@ public sealed record FootingLost(DisplacementReason Reason) : InputEvent;
 public sealed record ActionFinished(IntentKind Intent, long IntentStartedTick, ActionOutcome Outcome, ActionFailure? Failure = null)
     : InputEvent;
 
+/// <summary>
+/// Режим тишины начался или кончился (#31, ТЗ §11.7): человек попросил тишины или смотрит что-то
+/// во весь экран. В тишине голубь выбирает только тихие намерения, а после неё просыпается на
+/// том же месте. Хост подаёт вход только при смене состояния; повтор того же — пустой вход.
+/// </summary>
+public sealed record QuietChanged(bool Quiet) : InputEvent;
+
 /// <summary>Вход, применённый в конкретном тике.</summary>
 public readonly record struct JournalEntry(long Tick, InputEvent Event);

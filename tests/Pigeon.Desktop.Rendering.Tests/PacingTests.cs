@@ -20,7 +20,7 @@ public sealed class PacingTests
     [Fact]
     public void WithoutAFrame_MovementDoesNotRunAt60Hz()
     {
-        // Голубь идёт, но окна нет («Скрыть на час») — кадры рисовать некуда.
+        // Голубь идёт, но окна нет (режим тишины) — кадры рисовать некуда.
         var pace = FramePacing.Next(hasFrame: false, animating: true, nextChange: Now, Refresh, Poll, Now);
 
         Assert.False(pace.AwaitComposition);

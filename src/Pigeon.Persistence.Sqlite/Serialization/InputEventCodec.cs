@@ -27,6 +27,9 @@ internal static class InputEventCodec
     /// <summary>Данные — «намерение;тик начала;исход;причина» числами, причина пустая при успехе.</summary>
     public const string ActionFinished = "action-finished";
 
+    /// <summary>Данные — <c>1</c>, если тишина началась, и <c>0</c>, если кончилась (#31).</summary>
+    public const string QuietChanged = "quiet-changed";
+
     /// <summary>Данные — JSON-массив affordances (формат снимка).</summary>
     public const string AffordancesObserved = "affordances-observed";
 
@@ -41,6 +44,7 @@ internal static class InputEventCodec
         Simulation.FootingLost lost => new(FootingLost, ((int)lost.Reason).ToString(CultureInfo.InvariantCulture)),
         Simulation.ActionFinished finished => new(ActionFinished, string.Create(CultureInfo.InvariantCulture,
             $"{(int)finished.Intent};{finished.IntentStartedTick};{(int)finished.Outcome};{(finished.Failure is { } f ? (int)f : string.Empty)}")),
+        Simulation.QuietChanged quiet => new(QuietChanged, quiet.Quiet ? "1" : "0"),
         Simulation.AffordancesObserved observed => new(AffordancesObserved, SnapshotSerializer.SerializeAffordances(observed.Affordances)),
         _ => throw new NotSupportedException($"Вход {inputEvent.GetType().Name} не поддерживается хранилищем."),
     };
@@ -55,6 +59,12 @@ internal static class InputEventCodec
         AbsenceEnded => new Simulation.AbsenceEnded(TimeSpan.FromTicks(ParseNumber(type, payload))),
         FootingLost => new Simulation.FootingLost((World.Abstractions.DisplacementReason)(int)ParseNumber(type, payload)),
         ActionFinished => ParseActionFinished(type, payload),
+        QuietChanged => new Simulation.QuietChanged(payload switch
+        {
+            "1" => true,
+            "0" => false,
+            _ => throw new InvalidDataException($"Повреждённые данные входа «{type}»: «{payload}»."),
+        }),
         AffordancesObserved => new Simulation.AffordancesObserved(SnapshotSerializer.DeserializeAffordances(
             payload ?? throw new InvalidDataException($"У входа «{type}» нет данных."))),
         _ => throw new InvalidDataException($"Неизвестный тип входа в хранилище: «{type}»."),

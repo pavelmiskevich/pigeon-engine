@@ -47,13 +47,15 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
     /// <summary>Сколько поглаженный голубь сидит довольный.</summary>
     private static readonly TimeSpan PettedFor = TimeSpan.FromSeconds(2.5);
 
-    private static readonly TimeSpan HideFor = TimeSpan.FromHours(1);
+    /// <summary>«Тихо на час» из меню голубя (#31).</summary>
+    private static readonly TimeSpan QuietHour = TimeSpan.FromHours(1);
 
     /// <summary>Середина голубя над лапами, логические пиксели экрана: до неё считается расстояние до курсора.</summary>
     private const double BodyMiddle = 20;
 
-    private const int MenuHide = 1;
+    private const int MenuQuietHour = 1;
     private const int MenuQuit = 2;
+    private const int MenuQuietMorning = 3;
 
     public int Run()
     {
@@ -84,7 +86,17 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         var cursorKnown = probe.Checks.Any(c => c.Capability == Capability.GlobalCursor && c.IsUsable);
         var gestures = new PointerGestures();
         var petted = (Since: TimeSpan.Zero, Until: TimeSpan.Zero);
-        var hiddenUntil = TimeSpan.Zero;
+
+        // Тишина (#31): ручная из меню и автоматическая при полноэкранном приложении (C14). В
+        // замере полный экран не опрашивается: замер не должен зависеть от того, что открыто.
+        var fullscreenKnown = measurement is null && probe.Checks.Any(c => c.Capability == Capability.FullscreenDetection && c.IsUsable);
+        var quiet = new QuietMode();
+        quiet.Update(clock.Elapsed, fullscreenKnown && FullscreenState.Read());
+        if (simulation.IsQuiet != quiet.IsQuiet)
+        {
+            // Голубь из снимка затих в прошлом запуске, а тишины больше нет — или наоборот.
+            Announce(quiet, simulation, log);
+        }
 
         var stage = new PigeonStage(settings.SizeOnScreen);
         var player = new ClipPlayer();
@@ -116,6 +128,11 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                     }
 
                     Report(locomotion.OnWorldChanged(changes, now), simulation);
+
+                    if (quiet.Update(now, fullscreenKnown && FullscreenState.Read()))
+                    {
+                        Announce(quiet, simulation, log);
+                    }
                 }
 
                 while (pointer.TryDequeue(out var input))
@@ -127,11 +144,28 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
 
                     if (input.Action == PointerAction.RightUp)
                     {
-                        MenuItem?[] items = [new MenuItem(MenuHide, "Скрыть на час"), null, new MenuItem(MenuQuit, "Выход")];
+                        MenuItem?[] items =
+                        [
+                            new MenuItem(MenuQuietHour, "Тихо на час"),
+                            new MenuItem(MenuQuietMorning, "Тихо до утра"),
+                            null,
+                            new MenuItem(MenuQuit, "Выход"),
+                        ];
                         switch (PopupMenu.Show(pigeon.Handle, input.X, input.Y, items))
                         {
-                            case MenuHide:
-                                hiddenUntil = clock.Elapsed + HideFor;
+                            case MenuQuietHour:
+                                if (quiet.QuietFor(QuietHour, clock.Elapsed))
+                                {
+                                    Announce(quiet, simulation, log);
+                                }
+
+                                break;
+                            case MenuQuietMorning:
+                                if (quiet.QuietFor(QuietMode.UntilMorning(DateTime.Now), clock.Elapsed))
+                                {
+                                    Announce(quiet, simulation, log);
+                                }
+
                                 break;
                             case MenuQuit:
                                 MessageLoop.Quit();
@@ -140,7 +174,8 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
                     }
                 }
 
-                var hidden = now < hiddenUntil || measurement is { Hidden: true };
+                // В тишине окна скрыты и кадров нет (ТЗ §37: 0 fps).
+                var hidden = quiet.IsQuiet || measurement is { Hidden: true };
                 if (cursorKnown && measurement is null)
                 {
                     var seen = locomotion.Body;
@@ -295,6 +330,18 @@ internal sealed class DesktopHost(string spritesDirectory, Measurement? measurem
         }
 
         return 0;
+    }
+
+    /// <summary>Смена тишины — в симуляцию и одной строкой в журнал хоста (#31).</summary>
+    private static void Announce(QuietMode quiet, PigeonSimulation simulation, HostLog log)
+    {
+        simulation.Submit(new QuietChanged(quiet.IsQuiet));
+        log.Info(quiet.Reason switch
+        {
+            QuietReason.Manual => "Тишина по просьбе: голубь затих и спрятался.",
+            QuietReason.Fullscreen => "Тишина: приложение во весь экран, голубь затих и спрятался.",
+            _ => "Тишина кончилась: голубь просыпается.",
+        });
     }
 
     /// <summary>Событие мыши над голубем — в жесты (ТЗ §11.8).</summary>

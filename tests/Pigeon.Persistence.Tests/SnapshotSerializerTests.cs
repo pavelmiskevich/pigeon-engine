@@ -48,6 +48,22 @@ public sealed class SnapshotSerializerTests
     }
 
     [Fact]
+    public void QuietSnapshot_RoundTrips_AndOldSnapshotsAreNotQuiet()
+    {
+        var simulation = new PigeonSimulation(21, SimulationOptions.Desktop);
+        simulation.Submit(new QuietChanged(true));
+        simulation.RunTicks(10);
+        var quiet = simulation.CreateSnapshot();
+
+        var restored = SnapshotSerializer.Deserialize(SnapshotSerializer.Serialize(quiet));
+
+        Assert.True(restored.Quiet);
+        Assert.Equal(PigeonSimulation.Restore(quiet).ComputeStateHash(), PigeonSimulation.Restore(restored).ComputeStateHash());
+        Assert.False(SnapshotSerializer.Deserialize(Version3).Quiet);
+        Assert.DoesNotContain("quiet", SnapshotSerializer.Serialize(new PigeonSimulation(21, SimulationOptions.Desktop).CreateSnapshot()), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Version3_IsUpgradedWithEmptyMemoryAndBornEntry()
     {
         var snapshot = SnapshotSerializer.Deserialize(Version3);

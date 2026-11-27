@@ -30,6 +30,20 @@ public sealed class PigeonDomainStorageTests
     }
 
     [Fact]
+    public async Task QuietEntries_SurviveTheJournal()
+    {
+        using var db = new TestDatabase();
+        var store = await SqlitePetStore.OpenAsync(db.Path, TestContext.Current.CancellationToken);
+        JournalEntry[] entries = [new(3, new QuietChanged(true)), new(9, new QuietChanged(false))];
+
+        await store.AppendAsync(Pet, 0, entries, TestContext.Current.CancellationToken);
+        var read = await store.ReadAsync(Pet, 0, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(entries, read);
+        Assert.Equal("quiet-changed:1", TestDatabase.Query(db.Path, "SELECT type || ':' || payload FROM journal WHERE position = 0;"));
+    }
+
+    [Fact]
     public async Task InteractionEntries_SurviveTheJournal()
     {
         using var db = new TestDatabase();
