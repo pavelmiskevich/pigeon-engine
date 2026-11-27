@@ -73,6 +73,36 @@ public sealed record Affordance(
 }
 
 /// <summary>
+/// Территории в том, что предлагает мир (#89): где голубь сидит и куда может перелететь. Одно
+/// правило для симуляции (обживание дома) и Utility AI (знакомство дома).
+/// </summary>
+public static class AffordanceTerritories
+{
+    /// <summary>
+    /// Территория, где голубь сидит: ближайшие предки (<see cref="PlaceKey.Ancestors"/>) насестов
+    /// и мест отдыха — мир предлагает их только там. Пусто — мир этого не показывает.
+    /// </summary>
+    public static IEnumerable<PlaceKey> Home(IEnumerable<Affordance> affordances)
+    {
+        ArgumentNullException.ThrowIfNull(affordances);
+
+        return affordances
+            .Where(a => a.Kind is AffordanceKind.PerchSpot or AffordanceKind.RestSpot)
+            .Select(a => a.PlaceKey.Ancestors().FirstOrDefault())
+            .Where(t => t.Value is not null)
+            .Distinct();
+    }
+
+    /// <summary>Другие территории, на которые мир предлагает перелететь.</summary>
+    public static IEnumerable<PlaceKey> Others(IEnumerable<Affordance> affordances)
+    {
+        ArgumentNullException.ThrowIfNull(affordances);
+
+        return affordances.Where(a => a.Kind == AffordanceKind.TerritoryZone).Select(a => a.PlaceKey);
+    }
+}
+
+/// <summary>
 /// Откуда симуляция узнаёт, что сейчас есть в мире. Опрашивается в тиках решений; ответ
 /// записывается в журнал, поэтому при воспроизведении мир не нужен (ADR-0016).
 /// </summary>

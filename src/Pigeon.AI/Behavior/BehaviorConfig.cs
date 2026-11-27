@@ -51,6 +51,11 @@ public sealed record Consideration(ConsiderationInput Input, ResponseCurve Curve
 /// склонность — среднее Curiosity и Boldness в −1..1. Любопытного и смелого тянет к новому,
 /// робкого — к знакомому; 0 — новизна не учитывается.
 /// </param>
+/// <param name="HomeAttachmentWeight">
+/// Привязанность к дому (#89): у целей <c>TerritoryZone</c> множитель
+/// <c>1 − w · знакомство дома · max(0, −склонность)</c> — робкого держит обжитой монитор, у
+/// среднего и любопытного множитель 1; 0 — не учитывается.
+/// </param>
 public sealed record IntentDefinition(
     IntentKind Kind,
     IReadOnlyList<AffordanceKind> Targets,
@@ -63,7 +68,8 @@ public sealed record IntentDefinition(
     TimeSpan Cooldown,
     NeedEffects Needs,
     bool VisitsTarget = false,
-    double NoveltyWeight = 0.0)
+    double NoveltyWeight = 0.0,
+    double HomeAttachmentWeight = 0.0)
 {
     public bool HasTarget => Targets.Count > 0;
 }
@@ -193,6 +199,15 @@ public sealed record BehaviorConfig(
         else if (intent.NoveltyWeight != 0.0 && !intent.HasTarget)
         {
             yield return "novelty у намерения без целей";
+        }
+
+        if (intent.HomeAttachmentWeight is < 0.0 or > 0.9 || double.IsNaN(intent.HomeAttachmentWeight))
+        {
+            yield return $"homeAttachment = {intent.HomeAttachmentWeight}, нужно 0..0.9";
+        }
+        else if (intent.HomeAttachmentWeight != 0.0 && !intent.HasTarget)
+        {
+            yield return "homeAttachment у намерения без целей";
         }
 
         if (intent.Cooldown < TimeSpan.Zero)

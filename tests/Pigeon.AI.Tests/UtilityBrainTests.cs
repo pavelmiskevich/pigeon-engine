@@ -278,6 +278,31 @@ public sealed class UtilityBrainTests
         Assert.Equal(expected, Option(options, IntentKind.Relocate, KnownMonitor).Factors.Single(f => f.Key == UtilityBrain.NoveltyFactor).Value, 1e-12);
     }
 
+    [Theory]
+    [InlineData(0, 1.0, 0.7)]
+    [InlineData(0, 0.5, 0.85)]
+    [InlineData(50, 1.0, 1.0)]
+    [InlineData(100, 1.0, 1.0)]
+    public void HomeAttachment_HoldsTheTimidAtAFamiliarHome(int traits, double home, double expected)
+    {
+        var pigeon = PigeonState.FromSnapshot(Pigeon(Personality.Average with { Curiosity = traits, Boldness = traits }, new Needs(0.2, 0.6, 0.1)).ToSnapshot() with
+        {
+            Memory = [new PlaceMemoryEntry(HomeMonitor, home, 0, 1, true)],
+        });
+
+        var options = Brain.Score(pigeon, [HomePerch, NewMonitor], new IntentCooldowns(), 0, 0, false);
+
+        Assert.Equal(expected, Option(options, IntentKind.Relocate, NewMonitor).Factors.Single(f => f.Key == UtilityBrain.HomeFactor).Value, 1e-12);
+    }
+
+    [Fact]
+    public void HomeAttachment_NeedsToKnowWhereThePigeonSits()
+    {
+        var options = Brain.Score(Pigeon(Personality.Average with { Curiosity = 0, Boldness = 0 }), [NewMonitor], new IntentCooldowns(), 0, 0, false);
+
+        Assert.DoesNotContain(Option(options, IntentKind.Relocate, NewMonitor).Factors, f => f.Key == UtilityBrain.HomeFactor);
+    }
+
     private static readonly PlaceKey HomeMonitor = new("desktop/home");
 
     private static readonly Affordance HomePerch = new(

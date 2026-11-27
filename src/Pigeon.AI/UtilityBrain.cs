@@ -39,7 +39,7 @@ public sealed record ScoredOption(IntentKind Intent, AffordanceId? Target, doubl
     public IReadOnlyList<DecisionFactor> LeadingFactors(int count = 3) =>
         [.. Factors
             .Where(f => f.Key is not (UtilityBrain.PersonalityFactor or UtilityBrain.MoodFactor or UtilityBrain.NoveltyFactor
-                or UtilityBrain.MomentumFactor or UtilityBrain.ConstantFactor))
+                or UtilityBrain.HomeFactor or UtilityBrain.MomentumFactor or UtilityBrain.ConstantFactor))
             .OrderByDescending(f => f.Value)
             .Concat(Factors.Where(f => f.Key is UtilityBrain.PersonalityFactor or UtilityBrain.MoodFactor or UtilityBrain.NoveltyFactor && f.Value >= 1.1)
                 .OrderByDescending(f => f.Value))
@@ -67,6 +67,7 @@ public sealed class UtilityBrain
     public const string MoodFactor = "mood";
     public const string MomentumFactor = "momentum";
     public const string NoveltyFactor = "novelty";
+    public const string HomeFactor = "home";
     public const string ConstantFactor = "constant";
 
     private const double BoldnessRiskShift = 0.5;
@@ -229,13 +230,9 @@ public sealed class UtilityBrain
     private static double? HomeFamiliarity(PigeonState pigeon, IReadOnlyList<Affordance> affordances, long lifeSeconds)
     {
         double? home = null;
-        foreach (var affordance in affordances)
+        foreach (var territory in AffordanceTerritories.Home(affordances))
         {
-            if (affordance.Kind is AffordanceKind.PerchSpot or AffordanceKind.RestSpot
-                && affordance.PlaceKey.Ancestors().FirstOrDefault() is { Value: not null } territory)
-            {
-                home = Math.Max(home ?? 0.0, pigeon.Memory.FamiliarityOf(territory, lifeSeconds));
-            }
+            home = Math.Max(home ?? 0.0, pigeon.Memory.FamiliarityOf(territory, lifeSeconds));
         }
 
         return home;
@@ -256,6 +253,10 @@ public sealed class UtilityBrain
             ? 1.0 - familiarity + 0.5 * Math.Min(familiarity, here)
             : 1.0 - familiarity;
     }
+
+    /// <summary>Склонность к новому, −1..1: Curiosity и Boldness поровну; у среднего голубя 0.</summary>
+    private static double Lean(PigeonState pigeon) => Math.Clamp(
+        0.5 * Personality.Centered(pigeon.Personality.Curiosity) + 0.5 * Personality.Centered(pigeon.Personality.Boldness), -1.0, 1.0);
 
     private ScoredOption Evaluate(IntentDefinition intent, PigeonState pigeon, Affordance? target, long lifeSeconds, double? home, bool withMomentum)
     {
@@ -294,10 +295,16 @@ public sealed class UtilityBrain
             // Новизна — отдельный множитель, а не consideration: у среднего голубя он ровно 1 и не
             // занижает исследование относительно других намерений (ТЗ §20, #33).
             var novelty = Novelty(pigeon, target, lifeSeconds, home);
-            var lean = Math.Clamp(
-                0.5 * Personality.Centered(pigeon.Personality.Curiosity) + 0.5 * Personality.Centered(pigeon.Personality.Boldness), -1.0, 1.0);
-            var factor = 1.0 + intent.NoveltyWeight * (2.0 * novelty - 1.0) * lean;
+            var factor = 1.0 + intent.NoveltyWeight * (2.0 * novelty - 1.0) * Lean(pigeon);
             factors.Add(new DecisionFactor(NoveltyFactor, factor));
+            score *= factor;
+        }
+
+        if (intent.HomeAttachmentWeight != 0.0 && target is { Kind: AffordanceKind.TerritoryZone } && home is { } here)
+        {
+            // Улететь — значит покинуть обжитое: робкого держит дом тем сильнее, чем он знакомее (#89).
+            var factor = 1.0 - intent.HomeAttachmentWeight * here * Math.Max(0.0, -Lean(pigeon));
+            factors.Add(new DecisionFactor(HomeFactor, factor));
             score *= factor;
         }
 
