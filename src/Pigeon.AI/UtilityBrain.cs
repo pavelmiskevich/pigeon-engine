@@ -98,7 +98,8 @@ public sealed class UtilityBrain
         IntentCooldowns cooldowns,
         long tick,
         long lifeSeconds,
-        bool withMomentum)
+        bool withMomentum,
+        bool quiet = false)
     {
         ArgumentNullException.ThrowIfNull(pigeon);
         ArgumentNullException.ThrowIfNull(affordances);
@@ -108,7 +109,7 @@ public sealed class UtilityBrain
         var options = new List<ScoredOption>();
         foreach (var intent in _config.Intents)
         {
-            if (cooldowns.IsCoolingDown(intent.Kind, tick))
+            if (cooldowns.IsCoolingDown(intent.Kind, tick) || (quiet && !intent.AllowedInQuiet))
             {
                 continue;
             }
@@ -142,18 +143,20 @@ public sealed class UtilityBrain
         long tick,
         long lifeSeconds,
         DecisionTrigger trigger,
-        IRandomSource random)
+        IRandomSource random,
+        bool quiet = false)
     {
         ArgumentNullException.ThrowIfNull(random);
 
         var keepable = trigger is DecisionTrigger.Periodic or DecisionTrigger.Interrupted;
-        var options = Score(pigeon, affordances, cooldowns, tick, lifeSeconds, withMomentum: keepable);
+        var options = Score(pigeon, affordances, cooldowns, tick, lifeSeconds, withMomentum: keepable, quiet);
         var pool = Pool(options);
 
         if (pool.Count == 0)
         {
-            var idle = new ScoredOption(IntentKind.Wander, null, 0.0, []);
-            return new Decision(idle, KeptCurrent: pigeon.Intent == IntentKind.Wander && pigeon.IntentTarget is null, trigger, []);
+            // Выбирать не из чего: голубь просто гуляет, а в тишине — сидит (#31).
+            var idle = new ScoredOption(quiet ? IntentKind.Rest : IntentKind.Wander, null, 0.0, []);
+            return new Decision(idle, KeptCurrent: pigeon.Intent == idle.Intent && pigeon.IntentTarget is null, trigger, []);
         }
 
         if (keepable)

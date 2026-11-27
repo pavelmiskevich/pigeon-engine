@@ -17,6 +17,8 @@
 //   1 − знакомство с местом (у другой территории — 1 − f + 0.5 · min(f, знакомство дома)),
 //   склонность = (Curiosity и Boldness поровну) в −1..1; у среднего голубя множитель 1. Нет
 //   поля — новизна не учитывается.
+// quiet: намерение тихое — в режиме тишины голубь выбирает только такие (#31, ТЗ §11.7); если
+//   все они недоступны, он отдыхает (rest).
 // Изменение значений меняет эталонный хеш симуляции (ADR-0016).
 {
   "selection": {
@@ -44,6 +46,7 @@
       "mood": { "arousal": -0.3 },
       "durationSeconds": [60, 180],
       "cooldownSeconds": 120,
+      "quiet": true,
       "needs": { "fatigue": -0.3, "boredom": 1.0, "attention": 1.0 }
     },
     "sleep": {
@@ -54,6 +57,7 @@
       "traits": { "energy": -0.3 },
       "durationSeconds": [600, 1200],
       "cooldownSeconds": 3600,
+      "quiet": true,
       "needs": { "fatigue": -1.6, "boredom": 0.0, "attention": 0.3 }
     },
     "groom": {
@@ -64,6 +68,7 @@
       "traits": { "calmness": 0.3 },
       "durationSeconds": [20, 45],
       "cooldownSeconds": 300,
+      "quiet": true,
       "needs": { "fatigue": 0.4, "boredom": 0.5, "attention": 1.0 }
     },
     "explore": {

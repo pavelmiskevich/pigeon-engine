@@ -51,6 +51,10 @@ public sealed record Consideration(ConsiderationInput Input, ResponseCurve Curve
 /// склонность — среднее Curiosity и Boldness в −1..1. Любопытного и смелого тянет к новому,
 /// робкого — к знакомому; 0 — новизна не учитывается.
 /// </param>
+/// <param name="AllowedInQuiet">
+/// Намерение тихое (#31, ТЗ §11.7): в режиме тишины голубь выбирает только такие — сидит, спит,
+/// чистит перья, но не ходит и не летает.
+/// </param>
 public sealed record IntentDefinition(
     IntentKind Kind,
     IReadOnlyList<AffordanceKind> Targets,
@@ -63,7 +67,8 @@ public sealed record IntentDefinition(
     TimeSpan Cooldown,
     NeedEffects Needs,
     bool VisitsTarget = false,
-    double NoveltyWeight = 0.0)
+    double NoveltyWeight = 0.0,
+    bool AllowedInQuiet = false)
 {
     public bool HasTarget => Targets.Count > 0;
 }

@@ -146,6 +146,14 @@ public sealed class BehaviorConfigTests
     }
 
     [Fact]
+    public void DefaultConfig_QuietIntentsAreRestSleepAndGroom()
+    {
+        Assert.Equal(
+            [IntentKind.Rest, IntentKind.Sleep, IntentKind.Groom],
+            BehaviorConfig.Default.Intents.Where(i => i.AllowedInQuiet).Select(i => i.Kind));
+    }
+
+    [Fact]
     public void VisitsTarget_NeedsATarget()
     {
         var json = Minimal.Replace("\"durationSeconds\": [10, 20]", "\"durationSeconds\": [10, 20], \"visitsTarget\": true", StringComparison.Ordinal);

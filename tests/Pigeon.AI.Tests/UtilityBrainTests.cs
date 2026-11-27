@@ -41,6 +41,28 @@ public sealed class UtilityBrainTests
     }
 
     [Fact]
+    public void Quiet_LeavesOnlyQuietIntents()
+    {
+        var options = Brain.Score(Pigeon(needs: new Needs(0.6, 0.9, 0.9)), [Window, Cursor, OtherMonitor], new IntentCooldowns(), 0, 0, false, quiet: true);
+
+        Assert.Equal([IntentKind.Rest, IntentKind.Sleep, IntentKind.Groom], options.Select(o => o.Intent));
+    }
+
+    [Fact]
+    public void Quiet_WithNothingAvailable_Rests()
+    {
+        var cooldowns = new IntentCooldowns();
+        cooldowns.Start(IntentKind.Rest, 100);
+        cooldowns.Start(IntentKind.Sleep, 100);
+        cooldowns.Start(IntentKind.Groom, 100);
+
+        var decision = Brain.Decide(Pigeon(), [Window, Cursor], cooldowns, 0, 0, DecisionTrigger.Completed, new Pcg32(1, 1), quiet: true);
+
+        Assert.Equal(IntentKind.Rest, decision.Choice.Intent);
+        Assert.Null(decision.Choice.Target);
+    }
+
+    [Fact]
     public void CoolingDownIntent_IsNotACandidate()
     {
         var cooldowns = new IntentCooldowns();
