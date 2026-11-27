@@ -92,7 +92,9 @@ public sealed class MemoryLifeTests
 
         var memory = simulation.Pigeon.Memory;
         Assert.Equal(0.35, memory.FamiliarityOf(Taskbar.PlaceKey, simulation.LifeSeconds));
-        Assert.Equal(0.1, memory.FamiliarityOf(new PlaceKey("desktop/A"), simulation.LifeSeconds));
+        // Монитор рождения — полный визит территории: голубь на нём родился.
+        Assert.Equal(0.1 + 0.35 * 0.9, memory.FamiliarityOf(new PlaceKey("desktop/A"), simulation.LifeSeconds), 1e-12);
+        Assert.Equal(1, memory.Entries.Single(e => e.Place.Value == "desktop/A").Visits);
         Assert.Equal(0.0, memory.FamiliarityOf(Cursor.PlaceKey, simulation.LifeSeconds));
     }
 

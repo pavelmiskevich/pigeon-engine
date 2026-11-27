@@ -670,10 +670,17 @@ public sealed class PigeonSimulation
                 if (Pigeon.Memory.Entries.Count == 0)
                 {
                     // Первый взгляд на мир: голубь знает место, где родился, — насесты и места
-                    // отдыха вокруг (мир предлагает их только на мониторе, где голубь сидит).
-                    foreach (var spot in _affordances.Where(a => a.Kind is AffordanceKind.PerchSpot or AffordanceKind.RestSpot))
+                    // отдыха вокруг (мир предлагает их только на мониторе, где голубь сидит) и
+                    // саму территорию, на которой они лежат: рождение — её полный визит.
+                    var spots = _affordances.Where(a => a.Kind is AffordanceKind.PerchSpot or AffordanceKind.RestSpot).ToList();
+                    foreach (var spot in spots)
                     {
                         Remember(spot.PlaceKey, tick, territory: false);
+                    }
+
+                    foreach (var territory in spots.Select(s => s.PlaceKey.Ancestors().FirstOrDefault()).Where(t => t.Value is not null).Distinct())
+                    {
+                        Remember(territory, tick, territory: true);
                     }
                 }
 

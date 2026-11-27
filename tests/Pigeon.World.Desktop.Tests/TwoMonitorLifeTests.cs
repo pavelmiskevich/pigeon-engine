@@ -54,6 +54,22 @@ public sealed class TwoMonitorLifeTests
         Assert.Contains(host.Simulation.Pigeon.Memory.Entries, e => !e.Territory);
     }
 
+    [Theory]
+    [InlineData(21UL)]
+    [InlineData(5UL)]
+    public void TheCuriousFliesOffAtOnce_TheTimidStaysAtHomeLonger(ulong seed)
+    {
+        var curious = new Host(new FakeDesktop { Topology = FakeDesktop.TwoMonitors() }, seed, Personality.Average with { Curiosity = 100, Boldness = 100 });
+        var timid = new Host(new FakeDesktop { Topology = FakeDesktop.TwoMonitors() }, seed, Personality.Average with { Curiosity = 0, Boldness = 0 });
+
+        curious.Run(3 * TicksPerHour);
+        timid.Run(3 * TicksPerHour);
+
+        var curiousFlight = FirstFlight(curious);
+        var timidFlight = FirstFlight(timid);
+        Assert.True(timidFlight > 10 * curiousFlight && timidFlight > TicksPerHour / 3, $"первый перелёт: любопытный {curiousFlight}, робкий {timidFlight}");
+    }
+
     [Fact]
     public void UnpluggedMonitor_StartlesThePigeonAndDropsItOntoTheOtherOne()
     {
@@ -80,6 +96,10 @@ public sealed class TwoMonitorLifeTests
         Assert.False(host.Locomotion.Body.IsAirborne);
     }
 
+    /// <summary>Тик первого перелёта на другой монитор — по хронике.</summary>
+    private static long FirstFlight(Host host) =>
+        Assert.Single(host.Simulation.LifeStory, e => e.Kind == LifeEventKind.FirstMultiMonitorTransition).Tick;
+
     /// <summary>
     /// Связка хоста: экран перечитывается раз в 2 с, локомоция идёт кадрами по 1/60 с, её отчёты и
     /// потеря опоры уходят в симуляцию входами.
@@ -91,11 +111,11 @@ public sealed class TwoMonitorLifeTests
 
         private TimeSpan _now;
 
-        public Host(FakeDesktop desktop, ulong seed)
+        public Host(FakeDesktop desktop, ulong seed, Personality? personality = null)
         {
             World = new DesktopWorld(desktop, FakeDesktop.FullProbe());
             World.Refresh();
-            Simulation = new PigeonSimulation(seed, SimulationOptions.Desktop);
+            Simulation = new PigeonSimulation(seed, SimulationOptions.Desktop, personality);
             Simulation.AttachWorld(World);
             Locomotion = new DesktopLocomotion(World, new Pcg32(seed, 3));
         }
