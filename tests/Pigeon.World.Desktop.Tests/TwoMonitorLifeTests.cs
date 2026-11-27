@@ -57,7 +57,7 @@ public sealed class TwoMonitorLifeTests
     [Theory]
     [InlineData(21UL)]
     [InlineData(5UL)]
-    public void TheCuriousFliesOffAtOnce_TheTimidStaysAtHomeLonger(ulong seed)
+    public void TheCuriousFliesOffAtOnce_TheTimidStaysAtHome(ulong seed)
     {
         var curious = new Host(new FakeDesktop { Topology = FakeDesktop.TwoMonitors() }, seed, Personality.Average with { Curiosity = 100, Boldness = 100 });
         var timid = new Host(new FakeDesktop { Topology = FakeDesktop.TwoMonitors() }, seed, Personality.Average with { Curiosity = 0, Boldness = 0 });
@@ -65,9 +65,24 @@ public sealed class TwoMonitorLifeTests
         curious.Run(3 * TicksPerHour);
         timid.Run(3 * TicksPerHour);
 
-        var curiousFlight = FirstFlight(curious);
-        var timidFlight = FirstFlight(timid);
-        Assert.True(timidFlight > 10 * curiousFlight && timidFlight > TicksPerHour / 3, $"первый перелёт: любопытный {curiousFlight}, робкий {timidFlight}");
+        Assert.True(FirstFlight(curious) < TicksPerHour / 6, $"первый перелёт любопытного: {FirstFlight(curious)}");
+        Assert.DoesNotContain(timid.Simulation.LifeStory, e => e.Kind == LifeEventKind.FirstMultiMonitorTransition);
+    }
+
+    [Theory]
+    [InlineData(21UL)]
+    [InlineData(5UL)]
+    public void TheTimidSettlesAtHome_AndGetsAFavoriteMonitor(ulong seed)
+    {
+        var curious = new Host(new FakeDesktop { Topology = FakeDesktop.TwoMonitors() }, seed, Personality.Average with { Curiosity = 100, Boldness = 100 });
+        var timid = new Host(new FakeDesktop { Topology = FakeDesktop.TwoMonitors() }, seed, Personality.Average with { Curiosity = 0, Boldness = 0 });
+
+        curious.Run(24 * TicksPerHour);
+        timid.Run(24 * TicksPerHour);
+
+        Assert.Contains(timid.Simulation.LifeStory, e => e.Kind == LifeEventKind.FirstFavoriteTerritory);
+        Assert.DoesNotContain(curious.Simulation.LifeStory, e => e.Kind == LifeEventKind.FirstFavoriteTerritory);
+        Assert.True(curious.Landings.Count > timid.Landings.Count, $"перелёты: любопытный {curious.Landings.Count}, робкий {timid.Landings.Count}");
     }
 
     [Fact]
