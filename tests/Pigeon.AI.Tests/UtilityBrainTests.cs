@@ -261,6 +261,28 @@ public sealed class UtilityBrainTests
         Assert.Contains(Option(options, IntentKind.Explore, Window).Factors, f => f.Key == UtilityBrain.NoveltyFactor);
     }
 
+    [Theory]
+    [InlineData(0.9, 0, 0.975)]   // дом знаком так же, как цель: робкого почти не тянет на чужой монитор
+    [InlineData(0.1, 0, 1.175)]   // на новом месте робкого тянет обратно в знакомое
+    [InlineData(0.1, 100, 0.825)] // а любопытного — нет
+    [InlineData(0.9, 100, 1.025)]
+    public void NoveltyOfAnotherTerritory_IsRelativeToHome(double home, int traits, double expected)
+    {
+        var pigeon = PigeonState.FromSnapshot(Pigeon(Personality.Average with { Curiosity = traits, Boldness = traits }, new Needs(0.2, 0.6, 0.1)).ToSnapshot() with
+        {
+            Memory = [new PlaceMemoryEntry(HomeMonitor, home, 0, 1, true), new PlaceMemoryEntry(KnownMonitor.PlaceKey, 0.9, 0, 1, true)],
+        });
+
+        var options = Brain.Score(pigeon, [HomePerch, KnownMonitor], new IntentCooldowns(), 0, 0, false);
+
+        Assert.Equal(expected, Option(options, IntentKind.Relocate, KnownMonitor).Factors.Single(f => f.Key == UtilityBrain.NoveltyFactor).Value, 1e-12);
+    }
+
+    private static readonly PlaceKey HomeMonitor = new("desktop/home");
+
+    private static readonly Affordance HomePerch = new(
+        new AffordanceId(5), new PlaceKey("desktop/home/taskbar"), AffordanceKind.PerchSpot, 0.5, 0.0, TimeSpan.FromSeconds(5));
+
     private static readonly Affordance KnownMonitor = OtherMonitor with { PlaceKey = new PlaceKey("desktop/known") };
 
     private static readonly Affordance NewMonitor = OtherMonitor with { Id = new AffordanceId(4), PlaceKey = new PlaceKey("desktop/new") };

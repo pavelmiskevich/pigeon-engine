@@ -104,6 +104,7 @@ public sealed class UtilityBrain
         ArgumentNullException.ThrowIfNull(affordances);
         ArgumentNullException.ThrowIfNull(cooldowns);
 
+        var home = HomeFamiliarity(pigeon, affordances, lifeSeconds);
         var options = new List<ScoredOption>();
         foreach (var intent in _config.Intents)
         {
@@ -114,7 +115,7 @@ public sealed class UtilityBrain
 
             if (!intent.HasTarget)
             {
-                options.Add(Evaluate(intent, pigeon, null, lifeSeconds, withMomentum));
+                options.Add(Evaluate(intent, pigeon, null, lifeSeconds, home, withMomentum));
                 continue;
             }
 
@@ -122,7 +123,7 @@ public sealed class UtilityBrain
             {
                 if (intent.Targets.Contains(affordance.Kind))
                 {
-                    options.Add(Evaluate(intent, pigeon, affordance, lifeSeconds, withMomentum));
+                    options.Add(Evaluate(intent, pigeon, affordance, lifeSeconds, home, withMomentum));
                 }
             }
         }
@@ -220,7 +221,43 @@ public sealed class UtilityBrain
             .Take(_config.TopK)];
     }
 
-    private ScoredOption Evaluate(IntentDefinition intent, PigeonState pigeon, Affordance? target, long lifeSeconds, bool withMomentum)
+    /// <summary>
+    /// Насколько знакома территория, где голубь сейчас: та, на которой лежат предлагаемые миром
+    /// насесты и места отдыха (их ключи — места этой территории, <see cref="PlaceKey.Ancestors"/>).
+    /// <c>null</c> — мир не показывает, где голубь сидит.
+    /// </summary>
+    private static double? HomeFamiliarity(PigeonState pigeon, IReadOnlyList<Affordance> affordances, long lifeSeconds)
+    {
+        double? home = null;
+        foreach (var affordance in affordances)
+        {
+            if (affordance.Kind is AffordanceKind.PerchSpot or AffordanceKind.RestSpot
+                && affordance.PlaceKey.Ancestors().FirstOrDefault() is { Value: not null } territory)
+            {
+                home = Math.Max(home ?? 0.0, pigeon.Memory.FamiliarityOf(territory, lifeSeconds));
+            }
+        }
+
+        return home;
+    }
+
+    /// <summary>
+    /// Новизна цели 0..1: <c>1 − знакомство</c>. Улететь на другую территорию — значит сменить
+    /// знакомое на знакомое, если дом знаком не меньше цели, поэтому у
+    /// <see cref="AffordanceKind.TerritoryZone"/> та часть знакомства цели, которой не уступает
+    /// дом, наполовину нейтрализуется: <c>1 − f + 0,5 · min(f, дом)</c>. Незнакомая территория —
+    /// по-прежнему новизна 1; одинаково знакомые дом и цель — около 0,5, и робкого не тянет с
+    /// обжитого монитора на чужой; с нового места знакомая цель тянет его обратно.
+    /// </summary>
+    private static double Novelty(PigeonState pigeon, Affordance target, long lifeSeconds, double? home)
+    {
+        var familiarity = pigeon.Memory.FamiliarityOf(target.PlaceKey, lifeSeconds);
+        return target.Kind == AffordanceKind.TerritoryZone && home is { } here
+            ? 1.0 - familiarity + 0.5 * Math.Min(familiarity, here)
+            : 1.0 - familiarity;
+    }
+
+    private ScoredOption Evaluate(IntentDefinition intent, PigeonState pigeon, Affordance? target, long lifeSeconds, double? home, bool withMomentum)
     {
         var factors = new List<DecisionFactor>(intent.Considerations.Count + 4);
         var count = intent.Considerations.Count;
@@ -256,7 +293,7 @@ public sealed class UtilityBrain
         {
             // Новизна — отдельный множитель, а не consideration: у среднего голубя он ровно 1 и не
             // занижает исследование относительно других намерений (ТЗ §20, #33).
-            var novelty = 1.0 - pigeon.Memory.FamiliarityOf(target.PlaceKey, lifeSeconds);
+            var novelty = Novelty(pigeon, target, lifeSeconds, home);
             var lean = Math.Clamp(
                 0.5 * Personality.Centered(pigeon.Personality.Curiosity) + 0.5 * Personality.Centered(pigeon.Personality.Boldness), -1.0, 1.0);
             var factor = 1.0 + intent.NoveltyWeight * (2.0 * novelty - 1.0) * lean;
